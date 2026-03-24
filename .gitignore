@@ -41,10 +41,7 @@ ENV/
 db/
 knowledge/*
 !knowledge/.gitkeep
-projects/input/*
-!projects/input/.gitkeep
-projects/reports/*
-!projects/reports/.gitkeep
+projects/
 
 # Misceláneos
 *.log
