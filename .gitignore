@@ -38,6 +38,7 @@ venv/
 ENV/
 
 # Repositorios y configuraciones dinámicas
+.installed
 db/
 knowledge/*
 !knowledge/.gitkeep
