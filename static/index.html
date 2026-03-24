@@ -62,8 +62,10 @@
                     <input type="file" id="file-input-project" accept=".zip" hidden>
                 </div>
                 <div id="upload-progress-project" class="hidden">
-                    <div class="spinner"></div>
-                    <p class="status-text">Analizando código con RAG...</p>
+                    <p class="status-text" id="project-status-text">Analizando código con RAG...</p>
+                    <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; margin-top: 1rem; overflow: hidden;">
+                        <div id="project-progress-bar" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+                    </div>
                 </div>
             </div>
 

@@ -59,6 +59,18 @@ def run_audit():
 
     projects = [d for d in os.listdir(PROJECTS_ROOT) if os.path.isdir(os.path.join(PROJECTS_ROOT, d))]
     
+    # Pre-calcular el total de archivos a escanear
+    total_files = 0
+    for project_name in projects:
+        project_path = os.path.join(PROJECTS_ROOT, project_name)
+        for root, _, files in os.walk(project_path):
+            if any(x in root for x in ["target", ".mule", "bin", ".settings", "src/test"]): continue
+            for file in files:
+                if file.endswith(('.xml', '.dwl', '.yaml', '.properties')):
+                    total_files += 1
+
+    current_file = 0
+
     for project_name in projects:
         print(f"📁 Analizando Proyecto: {project_name}")
         full_report = f"# 🛡️ Reporte de Deuda Técnica: {project_name}\n\n"
@@ -72,8 +84,18 @@ def run_audit():
             
             for file in files:
                 if file.endswith(('.xml', '.dwl', '.yaml', '.properties')):
+                    current_file += 1
                     rel_path = os.path.relpath(os.path.join(root, file), project_path)
                     print(f"  🔍 {rel_path}...")
+
+                    # Reportar progreso global
+                    try:
+                        import json
+                        os.makedirs(REPORTS_DIR, exist_ok=True)
+                        with open(os.path.join(REPORTS_DIR, ".progress"), "w") as f_prog:
+                            json.dump({"current": current_file, "total": total_files, "file": rel_path}, f_prog)
+                    except Exception:
+                        pass
                     
                     try:
                         with open(os.path.join(root, file), 'r', encoding='utf-8', errors='ignore') as f:

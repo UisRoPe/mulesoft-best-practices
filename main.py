@@ -38,6 +38,19 @@ async def login(request: Request):
         return {"status": "success", "token": "dummy-jwt-token"}
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
+@app.get("/progress")
+async def get_progress():
+    progress_file = "projects/reports/.progress"
+    if os.path.exists(progress_file):
+        try:
+            import json
+            with open(progress_file, "r") as f:
+                data = json.load(f)
+            return data
+        except Exception:
+            pass
+    return {"current": 0, "total": 0, "file": ""}
+
 @app.get("/check_install")
 async def check_install():
     if os.path.exists(".installed"):
@@ -114,20 +127,28 @@ async def upload_project(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al descomprimir: {str(e)}")
 
+    import json
+    progress_file = "projects/reports/.progress"
+    try:
+        os.makedirs("projects/reports", exist_ok=True)
+        with open(progress_file, "w") as f:
+            json.dump({"current": 0, "total": 0, "file": "Descomprimiendo archivos..."}, f)
+    except:
+        pass
+
     # Start the scan process synchronously (for simplicity in UI pulling)
     # This could take a while in a real scenario, but we handle it in frontend with a loading state.
     try:
+        # We don't capture_output so the user can see live progress in their terminal
         process = subprocess.run(
-            ["python", "scripts/audit_project.py"], 
-            capture_output=True, 
-            text=True
+            ["python", "scripts/audit_project.py"]
         )
         if process.returncode != 0:
-            return {"status": "error", "logs": process.stderr}
+            return {"status": "error", "logs": "Falló la auditoría. Revisa los logs de la consola."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error durante auditoría: {str(e)}")
 
-    return {"status": "success", "logs": process.stdout}
+    return {"status": "success", "logs": "Auditoría completada exitosamente."}
 
 @app.post("/upload_knowledge")
 async def upload_knowledge(file: UploadFile = File(...)):
@@ -143,16 +164,14 @@ async def upload_knowledge(file: UploadFile = File(...)):
 
     try:
         process = subprocess.run(
-            ["python", "scripts/index_docs.py"], 
-            capture_output=True, 
-            text=True
+            ["python", "scripts/index_docs.py"]
         )
         if process.returncode != 0:
-            return {"status": "error", "logs": process.stderr}
+            return {"status": "error", "logs": "Falló la indexación. Revisa los logs de la consola."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error durante re-indexación vectorial: {str(e)}")
 
-    return {"status": "success", "logs": process.stdout, "message": "Base de datos vectorizada actualizada."}
+    return {"status": "success", "logs": "Indexación exitosa.", "message": "Base de datos vectorizada actualizada."}
 
 @app.get("/reports")
 async def list_reports():

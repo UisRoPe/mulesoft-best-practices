@@ -178,9 +178,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const dropZone = document.getElementById('drop-zone-project');
         const progress = document.getElementById('upload-progress-project');
+        const statusText = document.getElementById('project-status-text');
+        const progressBar = document.getElementById('project-progress-bar');
         
         dropZone.classList.add('hidden');
         progress.classList.remove('hidden');
+        progressBar.style.width = '0%';
+        statusText.textContent = 'Iniciando escaneo...';
+
+        let pollInterval = setInterval(async () => {
+            try {
+                const pRes = await fetch('/progress');
+                const pData = await pRes.json();
+                if (pData.total > 0) {
+                    const percent = Math.round((pData.current / pData.total) * 100);
+                    progressBar.style.width = `${percent}%`;
+                    statusText.textContent = `Analizando (${pData.current}/${pData.total}): ${pData.file}`;
+                }
+            } catch (e) {}
+        }, 1000);
         
         try {
             const res = await fetch('/upload', {
@@ -190,12 +206,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             
+            clearInterval(pollInterval);
+            progressBar.style.width = '100%';
+            
             if (res.ok) {
-                loadReports();
+                // Pequeña espera para que la animación se complete
+                setTimeout(() => loadReports(), 600);
             } else {
                 alert(`Error: ${data.detail || data.logs}`);
             }
         } catch (error) {
+            clearInterval(pollInterval);
             alert('Error al subir el archivo o procesar la auditoría.');
         } finally {
             progress.classList.add('hidden');
