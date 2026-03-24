@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MuleSoft AI Auditor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <!-- Marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen glass-panel active">
+        <div class="login-box">
+            <div class="logo-area">🛡️🤖</div>
+            <h2>MuleSoft AI Auditor</h2>
+            <p>Accede para iniciar la auditoría inteligente</p>
+            <form id="login-form">
+                <input type="text" id="username" placeholder="Usuario" required>
+                <input type="password" id="password" placeholder="Contraseña" required>
+                <button type="submit" class="btn-primary">Ingresar</button>
+            </form>
+            <p id="login-error" class="error-msg"></p>
+        </div>
+    </div>
+
+    <!-- Install Screen -->
+    <div id="install-screen" class="screen hidden glass-panel" style="justify-content: center; align-items: center;">
+        <div class="login-box" style="max-width: 500px;">
+            <h2 style="font-size: 1.5rem; color: #fff;">🚀 Instalación Requerida</h2>
+            <p style="margin-top: 1rem;">Para el primer uso es necesario descargar el modelo base de Inteligencia Artificial (Llama 3.1) y levantar la arquitectura local de vectores.</p>
+            <button id="btn-start-install" class="btn-primary" style="margin-top: 1.5rem; width: 100%;">Instalar y Preparar Entorno</button>
+            <div id="install-progress" class="hidden" style="margin-top: 1.5rem;">
+                <div class="spinner"></div>
+                <p class="status-text" style="margin-top: 1rem;">Descargando Modelo IA y Dependencias...<br><small style="color: var(--text-muted); font-weight: 300;">(Esto tomará unos minutos si es tu primera vez)</small></p>
+            </div>
+            <p id="install-error" class="error-msg"></p>
+        </div>
+    </div>
+
+    <!-- Dashboard Screen -->
+    <div id="dashboard-screen" class="screen hidden">
+        <aside class="sidebar glass-panel">
+            <div class="sidebar-header">
+                <h3>🛡️ AI Auditor</h3>
+                <button id="logout-btn" class="btn-icon" title="Cerrar Sesión">🚪</button>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" data-target="upload-project-section">Auditar Código</button>
+                <button class="tab-btn" data-target="upload-knowledge-section">Nutrir IA</button>
+            </div>
+
+            <!-- Upload Project ZIP -->
+            <div class="upload-section" id="upload-project-section">
+                <div class="drop-zone" id="drop-zone-project">
+                    <span class="icon">💻</span>
+                    <p>Arrastra tu <strong>ZIP</strong> aquí o haz clic para subir el código</p>
+                    <input type="file" id="file-input-project" accept=".zip" hidden>
+                </div>
+                <div id="upload-progress-project" class="hidden">
+                    <div class="spinner"></div>
+                    <p class="status-text">Analizando código con RAG...</p>
+                </div>
+            </div>
+
+            <!-- Upload Knowledge PDF -->
+            <div class="upload-section hidden" id="upload-knowledge-section">
+                <div class="drop-zone" id="drop-zone-knowledge">
+                    <span class="icon">📚</span>
+                    <p>Arrastra tu <strong>PDF</strong> aquí o haz clic para inyectar vectores</p>
+                    <input type="file" id="file-input-knowledge" accept=".pdf" hidden>
+                </div>
+                <div id="upload-progress-knowledge" class="hidden">
+                    <div class="spinner"></div>
+                    <p class="status-text">Generando vectores ChromaDB...</p>
+                </div>
+            </div>
+
+            <div class="reports-section">
+                <h4>Reportes Recientes</h4>
+                <ul id="reports-list">
+                    <!-- JS populate here -->
+                </ul>
+            </div>
+        </aside>
+
+        <main class="main-content glass-panel">
+            <div id="report-header" class="hidden" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 1rem;">
+                <h2 id="current-report-title" style="margin: 0; color: #fff; font-size: 1.5rem; font-weight: 600;"></h2>
+                <a id="download-report-btn" href="#" download class="btn-primary" style="text-decoration: none; padding: 0.6rem 1.2rem; font-size: 0.9rem; white-space: nowrap;">⬇️ Descargar MD</a>
+            </div>
+            
+            <div id="report-view" class="markdown-body">
+                <div class="empty-state">
+                    <h2>Bienvenido al Auditor</h2>
+                    <p>Sube un archivo ZIP con tu proyecto MuleSoft para comenzar el análisis autómata o selecciona un reporte del historial.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

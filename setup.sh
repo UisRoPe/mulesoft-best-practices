@@ -26,7 +26,7 @@ source venv/bin/activate
 # 4. Instalación de dependencias de IA y procesamiento
 echo "📦 Instalando las dependencias en Python vía pip..."
 pip install --upgrade pip
-pip install langchain langchain-community chromadb "unstructured[pdf]" lxml tiktoken langchain-chroma langchain-ollama langchain-core
+pip install langchain langchain-community chromadb "unstructured[pdf]" lxml tiktoken langchain-chroma langchain-ollama langchain-core fastapi uvicorn python-multipart aiofiles
 
 # 5. Verificar e instalar modelo local Ollama
 echo "🦙 Verificando instalación de Ollama..."
@@ -47,3 +47,5 @@ echo "Recuerda que para ejecutar los scripts debes activar primero"
 echo "tu entorno virtual en tu terminal ejecutando:"
 echo "👉 source venv/bin/activate"
 echo "=========================================================="
+
+touch .installed

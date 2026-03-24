@@ -47,4 +47,20 @@ Una vez consolidada la base del conocimiento documentado, el LLM inspeccionará 
    python scripts/audit_project.py
    ```
 3. **¿Qué ocurre internamente?** El script identificará archivos relevantes esquivando dependencias compiladas (target, .mule, etc), usará la base en ChromaDB para recuperar `(k=3)` las normativas más afines que correspondan a esa porción de código, e insertará todo en un prompt inyectado usando la API de `ChatOllama(model="llama3.1", temperature=0)`.
-4. **Ver Reportes:** Adicionalmente al progreso en consola, el compilado exacto con todos requerimientos correctivos será almacenado detalladamente como archivo `.md` (ej. `Matriz_Hallazgos_mi-api.md`) dentro de la carpeta principal de reportes: `projects/reports/`.
+## 🌐 Portal Web (Recomendado)
+El proyecto ahora cuenta con un Interfaz Web premium y estético que elimina por completo la necesidad de usar la línea de comandos para las auditorías diarias.
+
+### Inicio del Portal
+1. Activa tu entorno virtual: `source venv/bin/activate`
+2. Ejecuta el servidor desde la raíz del proyecto:
+   ```bash
+   python main.py
+   ```
+3. Abre tu navegador en: **http://localhost:8000**
+4. **Login por defecto:** Usuario: `admin` | Contraseña: `admin`
+
+### Características de la Interfaz:
+- **Subida Fácil:** Comprime la carpeta de tu API o Proyecto MuleSoft en un archivo `.zip` y arrástralo directamente a la zona de carga de la web.
+- **Base de Conocimiento Dinámica:** A través de la Pestaña "Nutrir IA", puedes subir PDFs con normativas nuevas que automáticamente re-entrenarán los vectores de la IA.
+- **Pipeline RAG Automático:** El sistema lo depositará, extraerá en `projects/input/` y llamará directamente al Agente IA de evaluación.
+- **Visualizador Integrado:** Una vez termine, puedes leer de manera dinámica y renderizada la matriz de hallazgos en la misma plataforma web.
