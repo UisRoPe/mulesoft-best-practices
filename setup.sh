@@ -1,51 +1,52 @@
 #!/bin/bash
-
 # setup.sh - Script de configuración inicial para MuleSoft AI Auditor
 
-echo "🛡️  Iniciando configuración de MuleSoft AI Auditor..."
+echo "🛡️  Iniciando validación del sistema..."
 
-# 1. Crear directorios base si no existen (Git a menudo omite carpetas vacías)
-echo "📁 Verificando estructura de directorios..."
-mkdir -p knowledge
-mkdir -p projects/input
-mkdir -p projects/reports
-mkdir -p db
+# 1. Crear directorios base si no existen
+mkdir -p knowledge projects/input projects/reports db
+touch knowledge/.gitkeep projects/input/.gitkeep projects/reports/.gitkeep db/.gitkeep
 
-# 2. Verificar si Python e pip están instalados
+# 2. Verificar si Python3 está instalado
 if ! command -v python3 &> /dev/null; then
-    echo "❌ Error: Python3 no está instalado."
-    echo "Por favor, instala Python3 antes de continuar."
+    echo "❌ Error: Python3 no está instalado. Por favor, instálalo antes de continuar."
     exit 1
 fi
 
-# 3. Recomendación y creación de entorno virtual (Opcional pero recomendado)
-echo "🐍 Creando el entorno virtual (venv)..."
-python3 -m venv venv
-source venv/bin/activate
-
-# 4. Instalación de dependencias de IA y procesamiento
-echo "📦 Instalando las dependencias en Python vía pip..."
-pip install --upgrade pip
-pip install langchain langchain-community chromadb "unstructured[pdf]" lxml tiktoken langchain-chroma langchain-ollama langchain-core fastapi uvicorn python-multipart aiofiles
-
-# 5. Verificar e instalar modelo local Ollama
-echo "🦙 Verificando instalación de Ollama..."
-if ! command -v ollama &> /dev/null; then
-    echo "⚠️  ATENCIÓN: La herramienta 'ollama' no está instalada en el sistema."
-    echo "👉 Debes descargarla e instalarla manualmente desde: https://ollama.com/download"
-    echo "👉 Una vez instalada, asegúrate de correr: ollama pull llama3.1"
-else
-    echo "✅ Ollama detectado. Verificando o descargando el modelo llama3.1..."
-    echo "(Esto puede tardar dependiendo de tu conexión a internet si es la primera vez)"
-    ollama pull llama3.1
+# 3. Crear el entorno virtual (venv) si no existe
+if [ ! -d "venv" ]; then
+    echo "🐍 Creando el entorno virtual (venv)..."
+    python3 -m venv venv
 fi
 
-echo "=========================================================="
-echo "✨ ¡Configuración completada exitosamente! ✨"
-echo ""
-echo "Recuerda que para ejecutar los scripts debes activar primero"
-echo "tu entorno virtual en tu terminal ejecutando:"
-echo "👉 source venv/bin/activate"
-echo "=========================================================="
+# 4. Activar el entorno virtual para este script
+source venv/bin/activate
 
-touch .installed
+# 5. Proceso core de instalación (Se salta si ya se hizo antes gracias a .installed)
+if [ ! -f ".installed" ]; then
+    echo "📦 Instalando las dependencias en Python vía pip..."
+    pip install --upgrade pip
+    pip install langchain langchain-community chromadb "unstructured[pdf]" lxml tiktoken langchain-chroma langchain-ollama langchain-core fastapi uvicorn python-multipart aiofiles
+
+    echo "🦙 Verificando instalación de Ollama..."
+    if ! command -v ollama &> /dev/null; then
+        echo "⚠️  ATENCIÓN: 'ollama' no está instalado en el sistema."
+        echo "Intentando instalar Ollama automáticamente..."
+        if [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
+            curl -fsSL https://ollama.com/install.sh | sh
+        else
+            echo "❌ No pudimos instalar Ollama automáticamente en tu SO."
+            echo "👉 Descárgalo versión desktop desde: https://ollama.com/download"
+            exit 1
+        fi
+    fi
+
+    echo "✅ Ollama detectado. Verificando o descargando el modelo llama3.1..."
+    echo "(Esto puede tardar varios minutos dependiendo de tu internet)"
+    ollama pull llama3.1
+
+    touch .installed
+    echo "✨ ¡Componentes descargados e instalados exitosamente! ✨"
+else
+    echo "✅ Todas las dependencias e IA ya se encontraban instaladas."
+fi
