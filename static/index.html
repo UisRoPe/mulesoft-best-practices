@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MuleSoft AI Auditor</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Sora:wght@300;400;600;700&family=Chivo+Mono:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css?v=2.2">
+    <link rel="stylesheet" href="/static/styles.css?v=2.3">
     <!-- Marked.js for markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
@@ -61,6 +61,10 @@
                         <option value="llama3.2">Llama 3.2 (3B)</option>
                         <option value="phi3.5">Phi-3.5 Mini</option>
                     </optgroup>
+                    <optgroup label="Código Especializado 🧑‍💻">
+                        <option value="deepseek-coder">DeepSeek-Coder (6.7B)</option>
+                        <option value="deepseek-coder:1.3b">DeepSeek-Coder (1.3B)</option>
+                    </optgroup>
                     <optgroup label="Máxima calidad">
                         <option value="llama3.1">Llama 3.1 (8B)</option>
                         <option value="qwen2.5">Qwen 2.5 (7B)</option>
@@ -100,9 +104,9 @@
             </div>
 
             <!-- Repositories -->
-            <div class="upload-section hidden" id="repositories-section">
+            <div class="upload-section hidden" id="repositories-section" style="display: flex; flex-direction: column; height: 100%;">
                 <div style="margin-bottom: 1rem; color: #fff; font-weight: 500;">Repositorios Cargados</div>
-                <ul id="repositories-list" style="list-style: none; padding: 0; margin: 0; max-height: 400px; overflow-y: auto;">
+                <ul id="repositories-list" style="list-style: none; padding: 0; margin: 0; flex: 1; overflow-y: auto; min-height: 0;">
                     <!-- JS populate here -->
                 </ul>
                 <div id="repositories-progress" class="hidden" style="margin-top: 1rem;">
@@ -155,6 +159,6 @@
         </main>
     </div>
 
-    <script src="/static/app.js?v=2.2"></script>
+    <script src="/static/app.js?v=2.3"></script>
 </body>
 </html>

@@ -241,6 +241,26 @@ h1, h2, h3, h4, .cyber-title {
 
 #repositories-list li span, .report-item span { flex: 1; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-primary);}
 
+.badge-new {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    background: var(--neon-magenta);
+    color: #000;
+    font-size: 0.55rem;
+    font-family: var(--font-display);
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    border-radius: 2px;
+    margin: 0 0.4rem;
+    vertical-align: middle;
+    animation: badge-pulse 1.5s ease-in-out infinite;
+    flex-shrink: 0;
+}
+@keyframes badge-pulse {
+    0%, 100% { box-shadow: 0 0 6px rgba(255, 0, 60, 0.8); }
+    50% { box-shadow: 0 0 14px rgba(255, 0, 60, 1), 0 0 30px rgba(255, 0, 60, 0.4); }
+}
+
 /* Terminal Process Override */
 .mini-console {
     background: #000;

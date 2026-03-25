@@ -503,7 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Load Reports
-    async function loadReports() {
+    async function loadReports(highlightNewest = false) {
         try {
             // Prevent cache by adding timestamp
             const res = await fetch('/reports?t=' + new Date().getTime(), {
@@ -511,11 +511,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             const list = document.getElementById('reports-list');
+            const previousFirst = list.firstElementChild?.dataset?.reportName;
             list.innerHTML = '';
             
-            data.reports.forEach(report => {
+            data.reports.forEach((report, idx) => {
                 const li = document.createElement('li');
                 li.className = 'report-item';
+                li.dataset.reportName = report;
                 // Remove Matriz_Hallazgos_ prefix and .md suffix for cleaner display
                 let cleanName = report.replace('Matriz_Hallazgos_', '').replace('.md', '');
                 const span = document.createElement('span');
@@ -524,6 +526,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 span.onclick = () => {
                     document.querySelectorAll('.report-item').forEach(el => el.classList.remove('active'));
                     li.classList.add('active');
+                    // Remove NEW badge when opened
+                    li.querySelector('.badge-new')?.remove();
                     loadReportContent(report);
                 };
 
@@ -564,6 +568,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.appendChild(actionsDiv);
                 list.appendChild(li);
             });
+
+            // Inject 'NEW' badge on the freshest report if it changed
+            const firstItem = list.firstElementChild;
+            if (firstItem && firstItem.dataset.reportName !== previousFirst) {
+                const badge = document.createElement('span');
+                badge.className = 'badge-new';
+                badge.textContent = 'NEW';
+                firstItem.insertBefore(badge, firstItem.firstElementChild.nextSibling);
+            }
         } catch (err) {
             console.error(err);
         }
