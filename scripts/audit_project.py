@@ -17,9 +17,23 @@ def run_audit():
     EMBED_MODEL = "nomic-embed-text"
     print(f"🚀 Generando Matriz... usando modelo: {MODEL_NAME}")
     
-    print(f"🦙 Asegurando que los motores {MODEL_NAME} y {EMBED_MODEL} estén disponibles localmente...")
-    subprocess.run(["ollama", "pull", MODEL_NAME])
-    subprocess.run(["ollama", "pull", EMBED_MODEL])
+    print(f"🦙 Validando disponibilidad de modelos locales...")
+    
+    # Verificar si el modelo de chat ya está descargado
+    installed = subprocess.run(["ollama", "list"], capture_output=True, text=True)
+    installed_models = installed.stdout.lower()
+    
+    if MODEL_NAME.lower() not in installed_models:
+        print(f"🔼 Modelo '{MODEL_NAME}' no encontrado. Descargando...")
+        subprocess.run(["ollama", "pull", MODEL_NAME])
+    else:
+        print(f"✅ Modelo '{MODEL_NAME}' ya disponible. Saltando descarga.")
+    
+    if EMBED_MODEL.lower() not in installed_models:
+        print(f"🔼 Motor de embeddings '{EMBED_MODEL}' no encontrado. Descargando...")
+        subprocess.run(["ollama", "pull", EMBED_MODEL])
+    else:
+        print(f"✅ Motor '{EMBED_MODEL}' ya disponible. Saltando descarga.")
     
     embeddings = OllamaEmbeddings(model=EMBED_MODEL)
     if not os.path.exists(DB_DIR):

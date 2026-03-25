@@ -30,8 +30,13 @@ def index_manuals():
     EMBED_MODEL = "nomic-embed-text"
     print(f"🧠 Generando Embeddings con motor de alta velocidad ({EMBED_MODEL})...")
     try:
-        print(f"🦙 Asegurando que el motor de Embeddings {EMBED_MODEL} esté disponible...")
-        subprocess.run(["ollama", "pull", EMBED_MODEL])
+        print(f"🦙 Validando disponibilidad del motor de embeddings...")
+        installed = subprocess.run(["ollama", "list"], capture_output=True, text=True)
+        if EMBED_MODEL.lower() not in installed.stdout.lower():
+            print(f"🔼 Motor '{EMBED_MODEL}' no encontrado. Descargando...")
+            subprocess.run(["ollama", "pull", EMBED_MODEL])
+        else:
+            print(f"✅ Motor '{EMBED_MODEL}' ya disponible. Saltando descarga.")
         
         embeddings = OllamaEmbeddings(model=EMBED_MODEL)
         
