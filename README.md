@@ -1,66 +1,61 @@
 # MuleSoft AI Auditor 🛡️🤖
-**Arquitectura:** RAG (Retrieval-Augmented Generation) empleando modelos locales con Ollama y bases vectoriales.
 
-Este proyecto permite incorporar una base de conocimiento corporativa (en formato PDF) de la cual se generarán embeddings locales para, posteriormente, auditar código fuente de MuleSoft contrastándolo contra estas buenas prácticas utilizando un modelo de IA local en Ollama.
+**Plataforma de Auditoría RAG** con diseño *Industrial Cyberpunk* impulsada por Inteligencia Artificial Local (Ollama) y Bases de Datos Vectoriales.
 
-## 📂 Estructura del Proyecto
-* `knowledge/`: Coloca aquí tus PDFs de Buenas Prácticas y Seguridad MuleSoft (ej. documentos de arquitectura).
-* `projects/input/`: Coloca en esta carpeta subdirectorios con los repositorios de MuleSoft a auditar (analizará `.xml`, `.dwl`, `.yaml`, `.properties`).
-* `projects/reports/`: Resultados en Markdown del análisis de deuda técnica y hallazgos generados por la Inteligencia Artificial.
-* `scripts/`: Lógica de indexación RAG y ejecución de la auditoría construida en Python.
-* `db/`: Base de datos vectorial persistente (ChromaDB) que guardará el modelo de conocimiento (persist_directory).
+Este proyecto permite ingerir manuales corporativos (PDFs), vectorizarlos utilizando un motor universal ultrarrápido, y emplear modelos híbridos (Llama 3.1, Qwen 2.5, etc.) para auditar código fuente de proyectos MuleSoft, contrastándolos arquitectónicamente en tiempo real.
 
-## 🚀 Requisitos y Configuración
+---
 
-1. **Modelos (Módulo Ollama):**
-   * Asegúrate de tener instalado Ollama en tu equipo y funcionando.
-   * Descarga el modelo local que usarán los scripts (para el Chat y para los Embeddings):
-     ```bash
-     ollama pull llama3.1
-     ```
-   * Asegúrate de que el servicio esté activo (generalmente usando la app de escritorio o ejecutando `ollama serve`).
+## ⚡️ Características Premium
+- **Diseño Cyberpunk Brutalista:** Interfaz de usuario inmersiva con overlay de monitores CRT de seguridad, botones mecánicos animados y una mini-consola hacker en tiempo real.
+- **Arquitectura RAG Desacoplada:** El sistema separa matemáticamente los Embeddings del modelo de Chat. Utiliza `nomic-embed-text` para construir la base de conocimiento ChromaDB, permitiéndote auditar el mismo proyecto turnando entre cualquier modelo de IA instantáneamente sin romper los vectores.
+- **Multihilo "Non-Blocking" (Subprocesos):** FastAPI envía las auditorías masivas a su *ThreadPoolExecutor*. Esto libera la aplicación web para pintar los logs en la interfaz gráfica archivo-por-archivo en tiempo real.
+- **Frenado de Emergencia (SIGTERM):** Un botón 🛑 en el visor permite liquidar limpiamente el análisis de la IA en pleno vuelo sin corromper la memoria del servidor.
+- **Protección de Contexto:** Protección nativa contra el "Context Length Exceeded" que trunca archivos monstruosamente largos (como `application-types.xml`) para modelos ligeros (1B).
 
-2. **Entorno Python:**
-   * Instala las dependencias y librerías modernas actualizadas en LangChain para Ollama y ChromaDB:
-     ```bash
-     pip install langchain langchain-community chromadb "unstructured[pdf]" lxml tiktoken langchain-chroma langchain-ollama langchain-core
-     ```
+---
 
-## 🛠️ Pasos de Uso del Proyecto
+## 🚀 Instalación y Despliegue en 1 Clic
 
-### Fase 1: Creación de Embeddings e Ingesta de Datos (Indexar Documentos)
-El primer paso constructivo es construir tu base de datos vectorial leyendo los PDFs corporativos.
+Con la versión actual, **ya no necesitas usar la consola.** El portal web se encarga de todo.
 
-1. Asegúrate de colocar tus archivos PDF dentro del directorio `knowledge/`.
-2. Para procesarlos y poblar la base de datos, ejecuta el script de ingesta:
+1. Abre una terminal y colócate dentro de este repositorio.
+2. Inicia el servidor maestro:
    ```bash
-   python scripts/index_docs.py
+   bash start.sh
+   # (Si prefieres uso manual: source venv/bin/activate && python main.py)
    ```
-3. **¿Qué ocurre internamente?** El script va a fragmentar el PDF (`RecursiveCharacterTextSplitter`), empleará la clase `OllamaEmbeddings(model="llama3.1")` de Langchain para vectorizar estos componentes de texto y los persistirá y guardará directamente en la carpeta local `/db`.
+3. Dirígete a **http://localhost:8000**
+4. Credenciales de acceso:
+   * **Usuario:** `admin`
+   * **Password:** `admin`
 
-### Fase 2: Análisis Automatizado de Código y Auditoría RAG
-Una vez consolidada la base del conocimiento documentado, el LLM inspeccionará el código fuente de los proyectos que desees verificar frente a esos hallazgos.
+*(Durante tu primer inicio de sesión, el sistema descargará el motor base y preparará el entorno visualmente).*
 
-1. Copia y pega las carpetas enteras de los proyectos de MuleSoft a analizar dentro del pipeline ingresándolos a `projects/input/` (ej: `projects/input/mi-api-sys-sapi/`).
-2. Dispara el agente auditor de código ejecutando:
-   ```bash
-   python scripts/audit_project.py
-   ```
-3. **¿Qué ocurre internamente?** El script identificará archivos relevantes esquivando dependencias compiladas (target, .mule, etc), usará la base en ChromaDB para recuperar `(k=3)` las normativas más afines que correspondan a esa porción de código, e insertará todo en un prompt inyectado usando la API de `ChatOllama(model="llama3.1", temperature=0)`.
-## 🌐 Portal Web (Recomendado)
-El proyecto ahora cuenta con un Interfaz Web premium y estético que elimina por completo la necesidad de usar la línea de comandos para las auditorías diarias.
+---
 
-### Inicio del Portal
-1. Activa tu entorno virtual: `source venv/bin/activate`
-2. Ejecuta el servidor desde la raíz del proyecto:
-   ```bash
-   python main.py
-   ```
-3. Abre tu navegador en: **http://localhost:8000**
-4. **Login por defecto:** Usuario: `admin` | Contraseña: `admin`
+## 🛠️ Flujo de Operación (Portal Web)
 
-### Características de la Interfaz:
-- **Subida Fácil:** Comprime la carpeta de tu API o Proyecto MuleSoft en un archivo `.zip` y arrástralo directamente a la zona de carga de la web.
-- **Base de Conocimiento Dinámica:** A través de la Pestaña "Nutrir IA", puedes subir PDFs con normativas nuevas que automáticamente re-entrenarán los vectores de la IA.
-- **Pipeline RAG Automático:** El sistema lo depositará, extraerá en `projects/input/` y llamará directamente al Agente IA de evaluación.
-- **Visualizador Integrado:** Una vez termine, puedes leer de manera dinámica y renderizada la matriz de hallazgos en la misma plataforma web.
+### 1. Seleccionar la IA (Sidebar)
+Puedes elegir libremente la *"inteligencia"* temporal que operará:
+- **Llama 3.1 (8B):** Para auditorías pesadas corporativas.
+- **Llama 3.2 (1B)** / **Qwen 2.5 (1.5B):** Modelos Edge ultrarrápidos para laptops, ideales para revisión de sintaxis y deuda técnica estándar.
+*(Si no tienes el modelo, el backend lo descargará bajo-demanda silenciosamente; verás el progreso de descarga en la consola).*
+
+### 2. Nutrir IA (Conocimiento Básico)
+1. Sube tus PDFs (Manuales de Seguridad, Arquitectura) en la pestaña **Nutrir IA**.
+2. El sistema creará un índice usando `nomic-embed-text`. Esto borra el índice anterior y asegura compatibilidad con cualquier modelo chat que escojas en el paso 1.
+
+### 3. Auditar Código
+1. En la pestaña **Nuevo Análisis**, arrastra un archivo `.zip` directo de Anypoint Studio. 
+2. Observa la consola renderizar los descubrimientos en vivo.
+3. Puedes **Pausar/Detener** la revisión desde la misma ventana.
+4. Explora todos los proyectos resguardados desde **Repositorios**, donde puedes editarlos, borrarlos y volverlos a auditar con otro modelo en paralelo.
+
+### 4. Reportes en Vivo
+Ve a la pestaña **Reportes** para leer la Matriz Markdown generada final. El visor de código ocupará todo el ancho para una fácil lectura técnica y permite un botón de descarga global.
+
+---
+
+> **Estructura Interna del Repositorio:**
+> `db/` (ChromaDB), `projects/` (Entorno estéril para zips e informes), `knowledge/` (PDFs crudos), `static/` (Arquitectura Frontend CSS+JS V2.2), `scripts/` (Núcleo Vectorial). *Las herramientas de IDE y agentes están ocultas por .gitignore.*
