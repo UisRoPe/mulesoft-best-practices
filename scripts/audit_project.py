@@ -44,11 +44,12 @@ def run_audit():
 
     INSTRUCCIONES DE REPORTE:
     Genera una tabla Markdown con este formato exacto por cada hallazgo encontrado:
-    | Prioridad | Categoría | Hallazgo/Observación | Acción Sugerida para el Dev |
-    | :--- | :--- | :--- | :--- |
+    | Prioridad | Categoría | Hallazgo/Observación | Fragmento de Código | Acción Sugerida para el Dev |
+    | :--- | :--- | :--- | :--- | :--- |
 
     - Prioridad: (Alta, Media, Baja)
     - Categoría: (Seguridad, Performance, Estándar, Conectividad)
+    - Fragmento de Código: Cita la línea o bloque exacto del código revisado que presenta el problema usando un bloque de código inline con backticks. Si el fragmento es muy largo, muestra solo las partes relevantes.
     - Acción Sugerida: Sé técnico y directo (ej. "Cambiar componente X por Y", "Mover a Secure Properties").
     
     IMPORTANTE: Si el archivo CUMPLE con todo, responde únicamente: "✅ CUMPLE". No inventes hallazgos.
