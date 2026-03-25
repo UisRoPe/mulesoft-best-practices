@@ -1,4 +1,6 @@
 import os
+import sys
+import subprocess
 from langchain_community.document_loaders import DirectoryLoader, UnstructuredPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma  # Librería actualizada
@@ -9,6 +11,7 @@ KNOWLEDGE_DIR = "knowledge"
 DB_DIR = "db"
 
 def index_manuals():
+    MODEL_NAME = sys.argv[1] if len(sys.argv) > 1 else "llama3.1"
     if not os.path.exists(KNOWLEDGE_DIR) or not os.listdir(KNOWLEDGE_DIR):
         print(f"❌ Error: La carpeta '{KNOWLEDGE_DIR}' está vacía. Pon tus PDFs ahí.")
         return
@@ -24,9 +27,13 @@ def index_manuals():
     print(f"✅ Se han generado {len(chunks)} fragmentos de conocimiento.")
     
     # Creamos la base de datos vectorial usando la nueva clase de Ollama
-    print("🧠 Generando Embeddings y guardando en /db (esto puede tardar un poco)...")
+    EMBED_MODEL = "nomic-embed-text"
+    print(f"🧠 Generando Embeddings con motor de alta velocidad ({EMBED_MODEL})...")
     try:
-        embeddings = OllamaEmbeddings(model="llama3.1")
+        print(f"🦙 Asegurando que el motor de Embeddings {EMBED_MODEL} esté disponible...")
+        subprocess.run(["ollama", "pull", EMBED_MODEL])
+        
+        embeddings = OllamaEmbeddings(model=EMBED_MODEL)
         
         vector_db = Chroma.from_documents(
             documents=chunks, 

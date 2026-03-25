@@ -1,4 +1,6 @@
 import os
+import sys
+import subprocess
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings, ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
@@ -11,16 +13,22 @@ PROJECTS_ROOT = "projects/input"
 REPORTS_DIR = "projects/reports"
 
 def run_audit():
-    print("🚀 Generando Matriz de Hallazgos (Arquitecto IA)...")
+    MODEL_NAME = sys.argv[1] if len(sys.argv) > 1 else "llama3.1"
+    EMBED_MODEL = "nomic-embed-text"
+    print(f"🚀 Generando Matriz... usando modelo: {MODEL_NAME}")
     
-    embeddings = OllamaEmbeddings(model="llama3.1")
+    print(f"🦙 Asegurando que los motores {MODEL_NAME} y {EMBED_MODEL} estén disponibles localmente...")
+    subprocess.run(["ollama", "pull", MODEL_NAME])
+    subprocess.run(["ollama", "pull", EMBED_MODEL])
+    
+    embeddings = OllamaEmbeddings(model=EMBED_MODEL)
     if not os.path.exists(DB_DIR):
         print("❌ Error: Corre primero index_docs.py")
         return
         
     vector_db = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
     retriever = vector_db.as_retriever(search_kwargs={"k": 3})
-    llm = ChatOllama(model="llama3.1", temperature=0)
+    llm = ChatOllama(model=MODEL_NAME, temperature=0)
 
     # 1. Prompt diseñado para Tablas de Acción
     template = """
@@ -58,6 +66,14 @@ def run_audit():
     )
 
     projects = [d for d in os.listdir(PROJECTS_ROOT) if os.path.isdir(os.path.join(PROJECTS_ROOT, d))]
+    TARGET_PROJECT = sys.argv[2] if len(sys.argv) > 2 else None
+    
+    if TARGET_PROJECT:
+        if TARGET_PROJECT in projects:
+            projects = [TARGET_PROJECT]
+        else:
+            print(f"❌ Proyecto seleccionado '{TARGET_PROJECT}' no se encontró en {PROJECTS_ROOT}")
+            return
     
     # Pre-calcular el total de archivos a escanear
     total_files = 0
@@ -101,7 +117,13 @@ def run_audit():
                         with open(os.path.join(root, file), 'r', encoding='utf-8', errors='ignore') as f:
                             content = f.read()
                         
-                        if not content.strip(): continue
+                        if not content.strip() or file == "application-types.xml" or file == "log4j2.xml": 
+                            continue
+
+                        # Límite de seguridad: Modelos pequeños (1B/3B) tienen ventanas de contexto limitadas.
+                        # 25,000 caracteres son aprox 6-8k tokens. Protegemos contra "context length exceeds 400"
+                        if len(content) > 25000:
+                            content = content[:25000] + "\n\n...[ADVERTENCIA: ARCHIVO TRUNCADO POR EXCESO DE TAMAÑO]..."
 
                         result = chain.invoke({"question": content, "file_name": rel_path})
                         

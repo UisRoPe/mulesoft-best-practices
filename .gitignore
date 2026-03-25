@@ -49,3 +49,9 @@ projects/reports/*
 
 # Misceláneos
 *.log
+
+# Entornos y Agentes
+.vscode/
+.agents/
+_agents/
+agents/

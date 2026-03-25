@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Request
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +7,9 @@ import zipfile
 import os
 import subprocess
 import glob
+import glob
+
+active_audit_process = None
 
 app = FastAPI(title="MuleSoft AI Auditor Portal")
 
@@ -60,17 +63,15 @@ async def check_install():
     dirs_verify = ["knowledge", "db", "projects/input", "projects/reports"]
     dirs_exist = all(os.path.exists(d) for d in dirs_verify)
     
-    # Smart validation for existing users: check ollama llama3.1 model
-    has_model = False
+    # Smart validation for existing users: check ollama installation
+    has_ollama = False
     try:
         if shutil.which("ollama"):
-            proc = subprocess.run(["ollama", "list"], capture_output=True, text=True)
-            if proc.returncode == 0 and "llama3.1" in proc.stdout:
-                has_model = True
+            has_ollama = True
     except Exception:
         pass
         
-    if dirs_exist and has_model:
+    if dirs_exist and has_ollama:
         # Create flag for future fast checks
         with open(".installed", "w") as f:
             f.write("installed")
@@ -100,20 +101,22 @@ async def run_install():
         raise HTTPException(status_code=500, detail=f"Error durante instalación: {str(e)}")
 
 @app.post("/upload")
-async def upload_project(file: UploadFile = File(...)):
+def upload_project(model: str = Form(...), file: UploadFile = File(...)):
     if not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="El archivo no es un ZIP")
 
-    # Clear previous inputs to avoid rescanning old things
     input_dir = "projects/input"
-    for item in os.listdir(input_dir):
-        item_path = os.path.join(input_dir, item)
-        if os.path.isfile(item_path) or os.path.islink(item_path):
-            os.unlink(item_path)
-        elif os.path.isdir(item_path):
-            shutil.rmtree(item_path)
-
-    zip_path = os.path.join(input_dir, "uploaded_project.zip")
+    
+    # Safe project name from zip name
+    project_name = os.path.splitext(file.filename)[0]
+    project_name = "".join(c for c in project_name if c.isalnum() or c in (' ', '-', '_')).strip()
+    if not project_name:
+        project_name = "Proyecto_Desconocido"
+        
+    extract_dir = os.path.join(input_dir, project_name)
+    os.makedirs(extract_dir, exist_ok=True)
+    
+    zip_path = os.path.join(input_dir, f"{project_name}.zip")
     
     # Save uploaded ZIP
     with open(zip_path, "wb") as buffer:
@@ -122,7 +125,7 @@ async def upload_project(file: UploadFile = File(...)):
     # Extract ZIP
     try:
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(input_dir)
+            zip_ref.extractall(extract_dir)
         os.remove(zip_path) # Clean up ZIP after extraction
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al descomprimir: {str(e)}")
@@ -132,26 +135,113 @@ async def upload_project(file: UploadFile = File(...)):
     try:
         os.makedirs("projects/reports", exist_ok=True)
         with open(progress_file, "w") as f:
-            json.dump({"current": 0, "total": 0, "file": "Descomprimiendo archivos..."}, f)
+            json.dump({"current": 0, "total": 0, "file": "Verificando/Descargando el modelo de IA local (Esto puede tomar minutos en el primer inicio)..."}, f)
     except:
         pass
 
-    # Start the scan process synchronously (for simplicity in UI pulling)
-    # This could take a while in a real scenario, but we handle it in frontend with a loading state.
+    # Start the scan process synchronously but non-blocking the event loop
+    global active_audit_process
     try:
-        # We don't capture_output so the user can see live progress in their terminal
-        process = subprocess.run(
-            ["python", "scripts/audit_project.py"]
+        active_audit_process = subprocess.Popen(
+            ["python", "scripts/audit_project.py", model, project_name]
         )
-        if process.returncode != 0:
+        active_audit_process.wait()
+        returncode = active_audit_process.returncode
+        active_audit_process = None
+        if returncode != 0 and returncode != -15: # -15 is SIGTERM (Cancel)
             return {"status": "error", "logs": "Falló la auditoría. Revisa los logs de la consola."}
+        if returncode == -15:
+            return {"status": "error", "logs": "Auditoría cancelada."}
     except Exception as e:
+        active_audit_process = None
         raise HTTPException(status_code=500, detail=f"Error durante auditoría: {str(e)}")
 
     return {"status": "success", "logs": "Auditoría completada exitosamente."}
 
+@app.get("/projects")
+async def list_projects():
+    input_dir = "projects/input"
+    projects = [d for d in os.listdir(input_dir) if os.path.isdir(os.path.join(input_dir, d))]
+    return {"projects": sorted(projects)}
+
+@app.delete("/projects/{project_name}")
+async def delete_project(project_name: str):
+    dir_path = os.path.join("projects/input", project_name)
+    if os.path.isdir(dir_path):
+        import shutil
+        shutil.rmtree(dir_path)
+        return {"status": "success", "message": "Proyecto eliminado."}
+    raise HTTPException(status_code=404, detail="El proyecto no existe.")
+
+@app.put("/projects/{project_name}")
+async def rename_project(project_name: str, request: Request):
+    data = await request.json()
+    new_name = data.get("new_name")
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Nuevo nombre es requerido")
+        
+    old_path = os.path.join("projects/input", project_name)
+    new_path = os.path.join("projects/input", new_name)
+    
+    if not os.path.isdir(old_path):
+        raise HTTPException(status_code=404, detail="El proyecto no existe.")
+    if os.path.exists(new_path):
+        raise HTTPException(status_code=400, detail="Ya existe un proyecto con ese nombre.")
+        
+    os.rename(old_path, new_path)
+    return {"status": "success", "message": "Proyecto renombrado exitosamente."}
+
+@app.post("/audit_existing")
+def audit_existing(model: str = Form(...), project_name: str = Form(...)):
+    input_dir = "projects/input"
+    if not os.path.isdir(os.path.join(input_dir, project_name)):
+        raise HTTPException(status_code=404, detail="El proyecto no existe localmente.")
+        
+    import json
+    progress_file = "projects/reports/.progress"
+    try:
+        os.makedirs("projects/reports", exist_ok=True)
+        with open(progress_file, "w") as f:
+            json.dump({"current": 0, "total": 0, "file": "Verificando/Descargando el modelo de IA local (Esto puede tomar minutos en el primer inicio)..."}, f)
+    except:
+        pass
+
+    global active_audit_process
+    try:
+        active_audit_process = subprocess.Popen(
+            ["python", "scripts/audit_project.py", model, project_name]
+        )
+        active_audit_process.wait()
+        returncode = active_audit_process.returncode
+        active_audit_process = None
+        if returncode != 0 and returncode != -15:
+            return {"status": "error", "logs": "Falló la auditoría. Revisa los logs de la consola."}
+        if returncode == -15:
+            return {"status": "error", "logs": "Auditoría cancelada."}
+    except Exception as e:
+        active_audit_process = None
+        raise HTTPException(status_code=500, detail=f"Error durante auditoría: {str(e)}")
+
+    return {"status": "success", "logs": "Auditoría completada exitosamente."}
+
+@app.post("/cancel_audit")
+def cancel_audit():
+    global active_audit_process
+    if active_audit_process:
+        active_audit_process.terminate()
+        active_audit_process = None
+        import json
+        progress_file = "projects/reports/.progress"
+        try:
+            with open(progress_file, "w") as f:
+                json.dump({"current": 0, "total": 0, "file": "✖️ Auditoría cancelada por el usuario."}, f)
+        except:
+            pass
+        return {"status": "success"}
+    return {"status": "error", "detail": "No hay un proceso activo."}
+
 @app.post("/upload_knowledge")
-async def upload_knowledge(files: list[UploadFile] = File(...)):
+async def upload_knowledge(model: str = Form(...), files: list[UploadFile] = File(...)):
     # Limpiamos conocimientos anteriores y borramos la base de datos vectorial
     if os.path.exists("knowledge"):
         shutil.rmtree("knowledge")
@@ -170,7 +260,7 @@ async def upload_knowledge(files: list[UploadFile] = File(...)):
 
     try:
         process = subprocess.run(
-            ["python", "scripts/index_docs.py"]
+            ["python", "scripts/index_docs.py", model]
         )
         if process.returncode != 0:
             return {"status": "error", "logs": "Falló la indexación. Revisa los logs de la consola."}
@@ -197,6 +287,35 @@ async def get_report(report_name: str):
         content = f.read()
     
     return {"content": content}
+
+@app.delete("/reports/{report_name}")
+async def delete_report(report_name: str):
+    report_path = os.path.join("projects/reports", report_name)
+    if os.path.exists(report_path):
+        os.remove(report_path)
+        return {"status": "success", "message": "Reporte eliminado."}
+    raise HTTPException(status_code=404, detail="Reporte no encontrado")
+
+@app.put("/reports/{report_name}")
+async def rename_report(report_name: str, request: Request):
+    data = await request.json()
+    new_name = data.get("new_name")
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Nuevo nombre es requerido")
+        
+    if not new_name.endswith(".md"):
+        new_name += ".md"
+        
+    old_path = os.path.join("projects/reports", report_name)
+    new_path = os.path.join("projects/reports", new_name)
+    
+    if not os.path.exists(old_path):
+        raise HTTPException(status_code=404, detail="El reporte no existe.")
+    if os.path.exists(new_path):
+        raise HTTPException(status_code=400, detail="Ya existe un reporte con ese nombre.")
+        
+    os.rename(old_path, new_path)
+    return {"status": "success", "message": "Reporte renombrado exitosamente."}
 
 @app.get("/download/{report_name}")
 async def download_report(report_name: str):

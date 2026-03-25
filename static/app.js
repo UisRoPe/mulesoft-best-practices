@@ -61,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('dashboard-screen').classList.add('active');
         
         loadReports();
+        loadProjects();
     }
 
     function showInstallOrDashboard() {
@@ -119,12 +120,21 @@ document.addEventListener('DOMContentLoaded', () => {
             e.target.classList.add('active');
             
             // Hide all sections
-            document.getElementById('upload-project-section').classList.add('hidden');
-            document.getElementById('upload-knowledge-section').classList.add('hidden');
+            document.querySelectorAll('.upload-section').forEach(sec => sec.classList.add('hidden'));
             
             // Show target section
             const targetId = e.target.getAttribute('data-target');
             document.getElementById(targetId).classList.remove('hidden');
+        });
+    });
+
+    // Cancel Audit
+    document.querySelectorAll('.btn-cancel-audit').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if(!confirm("¿Deseas interrumpir la ejecución de la Inteligencia Artificial? Se perderá el reporte actual.")) return;
+            try {
+                await fetch('/cancel_audit', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+            } catch(e) { console.error(e); }
         });
     });
 
@@ -180,6 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = files[0]; // ZIP handles 1 at a time for simplicity in backend
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('model', document.getElementById('model-select').value);
 
         const dropZone = document.getElementById('drop-zone-project');
         const progress = document.getElementById('upload-progress-project');
@@ -197,14 +208,18 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const pRes = await fetch('/progress');
                 const pData = await pRes.json();
-                if (pData.total > 0) {
-                    const percent = Math.round((pData.current / pData.total) * 100);
-                    progressBar.style.width = `${percent}%`;
-                    statusText.textContent = `Analizando (${pData.current}/${pData.total}): ${pData.file}`;
+                if (pData.total > 0 || pData.file.includes("Verificando")) {
+                    if (pData.total > 0) {
+                        const percent = Math.round((pData.current / pData.total) * 100);
+                        progressBar.style.width = `${percent}%`;
+                        statusText.textContent = `Analizando (${pData.current}/${pData.total}): ${pData.file}`;
+                    } else {
+                        statusText.textContent = pData.file;
+                    }
                     
                     const lastLine = consoleDiv.lastElementChild?.textContent;
-                    const newLine = `[✓] Procesado: ${pData.file}`;
-                    if (lastLine !== newLine && pData.file !== "Descomprimiendo archivos...") {
+                    const newLine = pData.total > 0 ? `[✓] Procesado: ${pData.file}` : `[i] ${pData.file}`;
+                    if (lastLine !== newLine) {
                         const span = document.createElement('span');
                         span.className = 'mini-console-line';
                         span.textContent = newLine;
@@ -247,6 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for(let i=0; i<files.length; i++) {
             formData.append('files', files[i]);
         }
+        formData.append('model', document.getElementById('model-select').value);
 
         const dropZone = document.getElementById('drop-zone-knowledge');
         const progress = document.getElementById('upload-progress-knowledge');
@@ -275,6 +291,217 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Load Projects
+    async function loadProjects() {
+        try {
+            const res = await fetch('/projects', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            const data = await res.json();
+            const list = document.getElementById('repositories-list');
+            list.innerHTML = '';
+            
+            if (data.projects.length === 0) {
+                list.innerHTML = '<li style="color: #a0aec0; padding: 1rem; text-align: center; font-size: 0.9rem;">No hay proyectos cargados.</li>';
+                return;
+            }
+            
+            data.projects.forEach(project => {
+                const li = document.createElement('li');
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = project;
+                nameSpan.style.flex = "1";
+                
+                const actionsDiv = document.createElement('div');
+                actionsDiv.style.display = "flex";
+                actionsDiv.style.gap = "0.5rem";
+
+                const btn = document.createElement('button');
+                btn.textContent = "Auditar";
+                btn.className = "btn-primary";
+                btn.style.padding = "0.4rem 0.8rem";
+                btn.style.fontSize = "0.8rem";
+                btn.onclick = () => auditExistingProject(project);
+
+                const renameBtn = document.createElement('button');
+                renameBtn.textContent = "✏️";
+                renameBtn.className = "btn-icon";
+                renameBtn.title = "Renombrar Repositorio";
+                renameBtn.style.background = "transparent";
+                renameBtn.style.border = "none";
+                renameBtn.style.padding = "0.4rem";
+                renameBtn.style.cursor = "pointer";
+                renameBtn.style.fontSize = "0.9rem";
+                renameBtn.onclick = () => renameProject(project);
+
+                const delBtn = document.createElement('button');
+                delBtn.textContent = "🗑️";
+                delBtn.className = "btn-icon";
+                delBtn.title = "Eliminar Repositorio";
+                delBtn.style.color = "var(--danger)";
+                delBtn.style.padding = "0.4rem";
+                delBtn.onclick = () => deleteProject(project);
+
+                actionsDiv.appendChild(btn);
+                actionsDiv.appendChild(renameBtn);
+                actionsDiv.appendChild(delBtn);
+                
+                li.appendChild(nameSpan);
+                li.appendChild(actionsDiv);
+                list.appendChild(li);
+            });
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    // Audit Existing Project
+    async function auditExistingProject(projectName) {
+        const formData = new FormData();
+        formData.append('model', document.getElementById('model-select').value);
+        formData.append('project_name', projectName);
+
+        const listDiv = document.getElementById('repositories-list');
+        const progress = document.getElementById('repositories-progress');
+        const statusText = document.getElementById('repo-status-text');
+        const progressBar = document.getElementById('repo-progress-bar');
+        const consoleDiv = document.getElementById('repo-console');
+        
+        listDiv.classList.add('hidden');
+        progress.classList.remove('hidden');
+        progressBar.style.width = '0%';
+        statusText.textContent = 'Contactando Motor AI...';
+        consoleDiv.innerHTML = '<span class="mini-console-line">Iniciando despunte de logs...</span>';
+
+        let pollInterval = setInterval(async () => {
+            try {
+                const pRes = await fetch('/progress');
+                const pData = await pRes.json();
+                if (pData.total > 0 || pData.file.includes("Verificando")) {
+                    if (pData.total > 0) {
+                        const percent = Math.round((pData.current / pData.total) * 100);
+                        progressBar.style.width = `${percent}%`;
+                        statusText.textContent = `Analizando (${pData.current}/${pData.total}): ${pData.file}`;
+                    } else {
+                        statusText.textContent = pData.file;
+                    }
+                    
+                    const lastLine = consoleDiv.lastElementChild?.textContent;
+                    const newLine = pData.total > 0 ? `[✓] Procesado: ${pData.file}` : `[i] ${pData.file}`;
+                    if (lastLine !== newLine) {
+                        const span = document.createElement('span');
+                        span.className = 'mini-console-line';
+                        span.textContent = newLine;
+                        consoleDiv.appendChild(span);
+                        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+                    }
+                }
+            } catch (e) {}
+        }, 1000);
+        
+        try {
+            const res = await fetch('/audit_existing', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                body: formData
+            });
+            const data = await res.json();
+            
+            clearInterval(pollInterval);
+            progressBar.style.width = '100%';
+            
+            if (res.ok) {
+                setTimeout(() => {
+                    loadReports();
+                    document.querySelector('.tab-btn[data-target="reports-section"]').click();
+                }, 600);
+            } else {
+                alert(`Error: ${data.detail || data.logs}`);
+            }
+        } catch (error) {
+            clearInterval(pollInterval);
+            alert('Error al procesar la auditoría.');
+        } finally {
+            progress.classList.add('hidden');
+            listDiv.classList.remove('hidden');
+        }
+    }
+
+    // Delete Project
+    async function deleteProject(project) {
+        if (!confirm(`¿Estás seguro de que deseas eliminar el repositorio '${project}'?`)) return;
+        try {
+            const res = await fetch(`/projects/${project}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            if (res.ok) {
+                loadProjects();
+            } else {
+                alert('No se pudo eliminar el proyecto.');
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    // Rename Project
+    async function renameProject(project) {
+        const newName = prompt(`Ingresa el nuevo nombre para el repositorio '${project}':`, project);
+        if (!newName || newName.trim() === '' || newName === project) return;
+        
+        try {
+            const res = await fetch(`/projects/${project}`, {
+                method: 'PUT',
+                headers: { 
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ new_name: newName.trim() })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                loadProjects();
+            } else {
+                alert(`Error al renombrar: ${data.detail || data.message || 'Desconocido'}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Error al renombrar el repositorio.');
+        }
+    }
+
+    // Delete Report
+    async function deleteReport(reportName) {
+        if (!confirm(`¿Estás seguro de que deseas eliminar el reporte '${reportName}'?`)) return;
+        try {
+            const res = await fetch(`/reports/${reportName}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            if (res.ok) {
+                loadReports();
+                // If the deleted report was active, clear the view
+                const reportTitle = document.getElementById('current-report-title').textContent;
+                const cleanName = reportName.replace('Matriz_Hallazgos_', '').replace('.md', '');
+                if (reportTitle.includes(cleanName)) {
+                    document.getElementById('report-header').classList.add('hidden');
+                    document.getElementById('report-view').innerHTML = `
+                        <div class="empty-state">
+                            <h2>Bienvenido al Auditor</h2>
+                            <p>Sube un archivo ZIP con tu proyecto MuleSoft para comenzar el análisis autómata o selecciona un reporte del historial.</p>
+                        </div>
+                    `;
+                }
+            } else {
+                alert('No se pudo eliminar el reporte.');
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
     // Load Reports
     async function loadReports() {
         try {
@@ -291,17 +518,92 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.className = 'report-item';
                 // Remove Matriz_Hallazgos_ prefix and .md suffix for cleaner display
                 let cleanName = report.replace('Matriz_Hallazgos_', '').replace('.md', '');
-                li.textContent = cleanName;
-                li.title = report;
-                li.onclick = () => {
+                const span = document.createElement('span');
+                span.textContent = cleanName;
+                span.style.flex = "1";
+                span.onclick = () => {
                     document.querySelectorAll('.report-item').forEach(el => el.classList.remove('active'));
                     li.classList.add('active');
                     loadReportContent(report);
                 };
+
+                const actionsDiv = document.createElement('div');
+                actionsDiv.style.display = "flex";
+                actionsDiv.style.gap = "0.1rem";
+
+                const renameBtn = document.createElement('button');
+                renameBtn.textContent = "✏️";
+                renameBtn.className = "btn-icon";
+                renameBtn.title = "Renombrar Reporte";
+                renameBtn.style.background = "transparent";
+                renameBtn.style.border = "none";
+                renameBtn.style.cursor = "pointer";
+                renameBtn.style.fontSize = "0.9rem";
+                renameBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    renameReport(report, cleanName);
+                };
+
+                const delBtn = document.createElement('button');
+                delBtn.textContent = "🗑️";
+                delBtn.className = "btn-icon";
+                delBtn.title = "Eliminar Reporte";
+                delBtn.style.background = "transparent";
+                delBtn.style.border = "none";
+                delBtn.style.cursor = "pointer";
+                delBtn.style.fontSize = "0.9rem";
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteReport(report);
+                };
+
+                actionsDiv.appendChild(renameBtn);
+                actionsDiv.appendChild(delBtn);
+
+                li.appendChild(span);
+                li.appendChild(actionsDiv);
                 list.appendChild(li);
             });
         } catch (err) {
             console.error(err);
+        }
+    }
+
+    // Rename Report
+    async function renameReport(reportName, currentCleanName) {
+        const newName = prompt(`Ingresa el nuevo nombre para el reporte:`, currentCleanName);
+        if (!newName || newName.trim() === '' || newName === currentCleanName) return;
+        
+        try {
+            const res = await fetch(`/reports/${reportName}`, {
+                method: 'PUT',
+                headers: { 
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ new_name: newName.trim() })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                loadReports();
+                
+                // Ensure UI state resets cleanly if active file is renamed
+                const reportTitle = document.getElementById('current-report-title').textContent;
+                if (reportTitle.includes(currentCleanName)) {
+                    document.getElementById('report-header').classList.add('hidden');
+                    document.getElementById('report-view').innerHTML = `
+                        <div class="empty-state">
+                            <h2>Bienvenido al Auditor</h2>
+                            <p>Sube un archivo ZIP con tu proyecto MuleSoft para comenzar el análisis autómata o selecciona un reporte del historial.</p>
+                        </div>
+                    `;
+                }
+            } else {
+                alert(`Error al renombrar: ${data.detail || data.message || 'Desconocido'}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Error al renombrar el reporte.');
         }
     }
 

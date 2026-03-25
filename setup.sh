@@ -41,9 +41,7 @@ if [ ! -f ".installed" ]; then
         fi
     fi
 
-    echo "✅ Ollama detectado. Verificando o descargando el modelo llama3.1..."
-    echo "(Esto puede tardar varios minutos dependiendo de tu internet)"
-    ollama pull llama3.1
+    echo "✅ Ollama detectado. Verificando y preparando entorno..."
 
     touch .installed
     echo "✨ ¡Componentes descargados e instalados exitosamente! ✨"
