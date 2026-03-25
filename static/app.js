@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('report-view').innerHTML = `
             <div class="empty-state">
                 <h2>Bienvenido al Auditor</h2>
-                <p>Sube un archivo ZIP con tu proyecto MuleSoft para comenzar el análisis autómata o selecciona un reporte del historial.</p>
+                <p>1️⃣ Nutre la IA con tus documentos.<br>2️⃣ Sube el archivo ZIP de tu proyecto para iniciar el análisis.<br>3️⃣ Espera a que se complete la auditoría.<br>4️⃣ Consulta el reporte generado.</p>
             </div>
         `;
     });
@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('report-view').innerHTML = `
                         <div class="empty-state">
                             <h2>Bienvenido al Auditor</h2>
-                            <p>Sube un archivo ZIP con tu proyecto MuleSoft para comenzar el análisis autómata o selecciona un reporte del historial.</p>
+                            <p>1️⃣ Nutre la IA con tus documentos.<br>2️⃣ Sube el archivo ZIP de tu proyecto para iniciar el análisis.<br>3️⃣ Espera a que se complete la auditoría.<br>4️⃣ Consulta el reporte generado.</p>
                         </div>
                     `;
                 }
@@ -607,7 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('report-view').innerHTML = `
                         <div class="empty-state">
                             <h2>Bienvenido al Auditor</h2>
-                            <p>Sube un archivo ZIP con tu proyecto MuleSoft para comenzar el análisis autómata o selecciona un reporte del historial.</p>
+                            <p>1️⃣ Nutre la IA con tus documentos.<br>2️⃣ Sube el archivo ZIP de tu proyecto para iniciar el análisis.<br>3️⃣ Espera a que se complete la auditoría.<br>4️⃣ Consulta el reporte generado.</p>
                         </div>
                     `;
                 }

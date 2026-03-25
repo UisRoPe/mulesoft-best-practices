@@ -1,5 +1,5 @@
 #!/bin/bash
-# setup.sh - Script de configuración inicial para MuleSoft AI Auditor
+# setup.sh - Script de configuración inicial para Auditor IA
 
 echo "🛡️  Iniciando validación del sistema..."
 

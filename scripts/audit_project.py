@@ -47,8 +47,8 @@ def run_audit():
 
     # 1. Prompt diseñado para Tablas de Acción
     template = """
-    Eres un Arquitecto de Soluciones Senior. Tu misión es auditar el archivo '{file_name}' 
-    contrastándolo con las BUENAS PRÁCTICAS del contexto.
+    Eres un Arquitecto de Soluciones Senior. Tu misión es auditar el archivo '{file_name}' \
+contrastándolo con las BUENAS PRÁCTICAS del contexto.
 
     CONTEXTO TÉCNICO:
     {context}
@@ -56,17 +56,25 @@ def run_audit():
     CÓDIGO A EVALUAR:
     {question}
 
-    INSTRUCCIONES DE REPORTE:
-    Genera una tabla Markdown con este formato exacto por cada hallazgo encontrado:
+    REGLAS DE SALIDA — LEE CON ATENCIÓN ANTES DE RESPONDER:
+
+    REGLA 1: Tu respuesta COMPLETA debe ser ÚNICAMENTE una tabla Markdown. NADA MÁS.
+    REGLA 2: PROHIBIDO escribir texto antes o después de la tabla (introduciones, conclusiones, comentarios).
+    REGLA 3: PROHIBIDO fusionar varias celdas en una sola línea. Cada fila DEBE ocupar su propia línea.
+    REGLA 4: Cada fila DEBE seguir exactamente este formato (5 columnas separadas por |):
+    | Alta | Seguridad | Descripción del hallazgo | `fragmento` | Acción concreta |
+    REGLA 5: Si el archivo CUMPLE con todo, responde ÚNICAMENTE con el texto: ✅ CUMPLE
+
+    FORMATO OBLIGATORIO DE LA TABLA:
     | Prioridad | Categoría | Hallazgo/Observación | Fragmento de Código | Acción Sugerida para el Dev |
     | :--- | :--- | :--- | :--- | :--- |
+    | Alta | Seguridad | Ejemplo de hallazgo | `código aquí` | Acción concreta aquí |
 
-    - Prioridad: (Alta, Media, Baja)
-    - Categoría: (Seguridad, Performance, Estándar, Conectividad)
-    - Fragmento de Código: Cita la línea o bloque exacto del código revisado que presenta el problema usando un bloque de código inline con backticks. Si el fragmento es muy largo, muestra solo las partes relevantes.
-    - Acción Sugerida: Sé técnico y directo (ej. "Cambiar componente X por Y", "Mover a Secure Properties").
-    
-    IMPORTANTE: Si el archivo CUMPLE con todo, responde únicamente: "✅ CUMPLE". No inventes hallazgos.
+    Columnas:
+    - Prioridad: Alta | Media | Baja
+    - Categoría: Seguridad | Performance | Estándar | Conectividad
+    - Fragmento de Código: usa backticks inline. Si es largo, muestra solo la parte relevante.
+    - Acción Sugerida: sé directo y técnico (ej: "Mover credencial a Secure Properties").
     """
     prompt = ChatPromptTemplate.from_template(template)
 

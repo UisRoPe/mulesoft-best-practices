@@ -2,7 +2,7 @@
 # start.sh - Script de arranque Todo-en-Uno
 
 echo "=========================================================="
-echo "🚀 Iniciando MuleSoft AI Auditor..."
+echo "🚀 Iniciando Auditor IA..."
 echo "=========================================================="
 
 # 1. Corre la configuración y validación inteligente siempre

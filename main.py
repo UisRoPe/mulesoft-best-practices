@@ -12,7 +12,7 @@ import asyncio
 
 active_audit_process = None
 
-app = FastAPI(title="MuleSoft AI Auditor Portal")
+app = FastAPI(title="Auditor IA Portal")
 
 app.add_middleware(
     CORSMiddleware,

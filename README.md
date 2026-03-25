@@ -1,4 +1,4 @@
-# MuleSoft AI Auditor 🛡️🤖
+# Auditor IA 🛡️🤖
 
 **Plataforma de Auditoría RAG** con diseño *Industrial Cyberpunk* impulsada por Inteligencia Artificial Local (Ollama) y Bases de Datos Vectoriales.
 
