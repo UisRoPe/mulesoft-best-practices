@@ -8,6 +8,7 @@ import os
 import subprocess
 import glob
 import glob
+import asyncio
 
 active_audit_process = None
 
@@ -101,13 +102,11 @@ async def run_install():
         raise HTTPException(status_code=500, detail=f"Error durante instalación: {str(e)}")
 
 @app.post("/upload")
-def upload_project(model: str = Form(...), file: UploadFile = File(...)):
+async def upload_project(model: str = Form(...), file: UploadFile = File(...)):
     if not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="El archivo no es un ZIP")
 
     input_dir = "projects/input"
-    
-    # Safe project name from zip name
     project_name = os.path.splitext(file.filename)[0]
     project_name = "".join(c for c in project_name if c.isalnum() or c in (' ', '-', '_')).strip()
     if not project_name:
@@ -115,18 +114,17 @@ def upload_project(model: str = Form(...), file: UploadFile = File(...)):
         
     extract_dir = os.path.join(input_dir, project_name)
     os.makedirs(extract_dir, exist_ok=True)
-    
     zip_path = os.path.join(input_dir, f"{project_name}.zip")
     
-    # Save uploaded ZIP
+    # Read asynchronously then write to disk
+    contents = await file.read()
     with open(zip_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+        buffer.write(contents)
 
-    # Extract ZIP
     try:
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(extract_dir)
-        os.remove(zip_path) # Clean up ZIP after extraction
+        os.remove(zip_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al descomprimir: {str(e)}")
 
@@ -139,17 +137,17 @@ def upload_project(model: str = Form(...), file: UploadFile = File(...)):
     except:
         pass
 
-    # Start the scan process synchronously but non-blocking the event loop
     global active_audit_process
     try:
         active_audit_process = subprocess.Popen(
             ["python", "scripts/audit_project.py", model, project_name]
         )
-        active_audit_process.wait()
-        returncode = active_audit_process.returncode
+        # Wait without blocking the event loop
+        loop = asyncio.get_event_loop()
+        returncode = await loop.run_in_executor(None, active_audit_process.wait)
         active_audit_process = None
-        if returncode != 0 and returncode != -15: # -15 is SIGTERM (Cancel)
-            return {"status": "error", "logs": "Falló la auditoría. Revisa los logs de la consola."}
+        if returncode != 0 and returncode != -15:
+            return {"status": "error", "logs": "Falló la auditoría. Revisa los logs de la consola del servidor."}
         if returncode == -15:
             return {"status": "error", "logs": "Auditoría cancelada."}
     except Exception as e:
@@ -192,7 +190,7 @@ async def rename_project(project_name: str, request: Request):
     return {"status": "success", "message": "Proyecto renombrado exitosamente."}
 
 @app.post("/audit_existing")
-def audit_existing(model: str = Form(...), project_name: str = Form(...)):
+async def audit_existing(model: str = Form(...), project_name: str = Form(...)):
     input_dir = "projects/input"
     if not os.path.isdir(os.path.join(input_dir, project_name)):
         raise HTTPException(status_code=404, detail="El proyecto no existe localmente.")
@@ -211,11 +209,11 @@ def audit_existing(model: str = Form(...), project_name: str = Form(...)):
         active_audit_process = subprocess.Popen(
             ["python", "scripts/audit_project.py", model, project_name]
         )
-        active_audit_process.wait()
-        returncode = active_audit_process.returncode
+        loop = asyncio.get_event_loop()
+        returncode = await loop.run_in_executor(None, active_audit_process.wait)
         active_audit_process = None
         if returncode != 0 and returncode != -15:
-            return {"status": "error", "logs": "Falló la auditoría. Revisa los logs de la consola."}
+            return {"status": "error", "logs": "Falló la auditoría. Revisa los logs de la consola del servidor."}
         if returncode == -15:
             return {"status": "error", "logs": "Auditoría cancelada."}
     except Exception as e:
