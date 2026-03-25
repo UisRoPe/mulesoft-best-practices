@@ -151,16 +151,22 @@ async def upload_project(file: UploadFile = File(...)):
     return {"status": "success", "logs": "Auditoría completada exitosamente."}
 
 @app.post("/upload_knowledge")
-async def upload_knowledge(file: UploadFile = File(...)):
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Debes subir un archivo PDF de buenas prácticas")
+async def upload_knowledge(files: list[UploadFile] = File(...)):
+    # Limpiamos conocimientos anteriores y borramos la base de datos vectorial
+    if os.path.exists("knowledge"):
+        shutil.rmtree("knowledge")
+    if os.path.exists("db"):
+        shutil.rmtree("db")
 
     os.makedirs("knowledge", exist_ok=True)
-    pdf_path = os.path.join("knowledge", file.filename)
     
-    # Check if we should delete existing knowledge? Not necessarily, user can accumulate.
-    with open(pdf_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # Procesamos todos los archivos
+    for file in files:
+        if not file.filename.endswith(".pdf"):
+            continue
+        pdf_path = os.path.join("knowledge", file.filename)
+        with open(pdf_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
     try:
         process = subprocess.run(
@@ -174,7 +180,8 @@ async def upload_knowledge(file: UploadFile = File(...)):
     return {"status": "success", "logs": "Indexación exitosa.", "message": "Base de datos vectorizada actualizada."}
 
 @app.get("/reports")
-async def list_reports():
+async def list_reports(response: JSONResponse):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     reports_dir = "projects/reports"
     files = glob.glob(os.path.join(reports_dir, "*.md"))
     report_names = [os.path.basename(f) for f in files]

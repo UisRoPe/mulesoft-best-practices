@@ -158,11 +158,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function handleFiles(files) {
             if (files.length > 0) {
-                const file = files[0];
-                if (file.name.endsWith(acceptExt)) {
-                    uploadFunc(file);
+                // Validation for extensions
+                let valid = true;
+                for (let i=0; i<files.length; i++) {
+                    if (!files[i].name.endsWith(acceptExt)) valid = false;
+                }
+                if (valid) {
+                    uploadFunc(files);
                 } else {
-                    alert(`Por favor, sube un archivo con extensión ${acceptExt}.`);
+                    alert(`Por favor, asegúrate de subir archivos con extensión ${acceptExt}.`);
                 }
             }
         }
@@ -172,7 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
     enableDragAndDrop('drop-zone-knowledge', 'file-input-knowledge', uploadKnowledge, '.pdf');
 
     // Projects (Auditing)
-    async function uploadProject(file) {
+    async function uploadProject(files) {
+        const file = files[0]; // ZIP handles 1 at a time for simplicity in backend
         const formData = new FormData();
         formData.append('file', file);
 
@@ -180,11 +185,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const progress = document.getElementById('upload-progress-project');
         const statusText = document.getElementById('project-status-text');
         const progressBar = document.getElementById('project-progress-bar');
+        const consoleDiv = document.getElementById('project-console');
         
         dropZone.classList.add('hidden');
         progress.classList.remove('hidden');
         progressBar.style.width = '0%';
         statusText.textContent = 'Iniciando escaneo...';
+        consoleDiv.innerHTML = '<span class="mini-console-line">Iniciando despunte de proyecto...</span>';
 
         let pollInterval = setInterval(async () => {
             try {
@@ -194,6 +201,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const percent = Math.round((pData.current / pData.total) * 100);
                     progressBar.style.width = `${percent}%`;
                     statusText.textContent = `Analizando (${pData.current}/${pData.total}): ${pData.file}`;
+                    
+                    const lastLine = consoleDiv.lastElementChild?.textContent;
+                    const newLine = `[✓] Procesado: ${pData.file}`;
+                    if (lastLine !== newLine && pData.file !== "Descomprimiendo archivos...") {
+                        const span = document.createElement('span');
+                        span.className = 'mini-console-line';
+                        span.textContent = newLine;
+                        consoleDiv.appendChild(span);
+                        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+                    }
                 }
             } catch (e) {}
         }, 1000);
@@ -225,9 +242,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Knowledge (PDFs Embeddings)
-    async function uploadKnowledge(file) {
+    async function uploadKnowledge(files) {
         const formData = new FormData();
-        formData.append('file', file);
+        for(let i=0; i<files.length; i++) {
+            formData.append('files', files[i]);
+        }
 
         const dropZone = document.getElementById('drop-zone-knowledge');
         const progress = document.getElementById('upload-progress-knowledge');
@@ -259,7 +278,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load Reports
     async function loadReports() {
         try {
-            const res = await fetch('/reports', {
+            // Prevent cache by adding timestamp
+            const res = await fetch('/reports?t=' + new Date().getTime(), {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             const data = await res.json();
