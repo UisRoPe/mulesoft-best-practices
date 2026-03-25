@@ -28,7 +28,8 @@ def run_audit():
         
     vector_db = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
     retriever = vector_db.as_retriever(search_kwargs={"k": 3})
-    llm = ChatOllama(model=MODEL_NAME, temperature=0)
+    # Expandimos num_ctx a 8192 (aprox 8k tokens) para permitir archivos más largos sin quebrar el modelo
+    llm = ChatOllama(model=MODEL_NAME, temperature=0, num_predict=1500, num_ctx=8192)
 
     # 1. Prompt diseñado para Tablas de Acción
     template = """
@@ -121,9 +122,10 @@ def run_audit():
                             continue
 
                         # Límite de seguridad: Modelos pequeños (1B/3B) tienen ventanas de contexto limitadas.
-                        # 25,000 caracteres son aprox 6-8k tokens. Protegemos contra "context length exceeds 400"
-                        if len(content) > 25000:
-                            content = content[:25000] + "\n\n...[ADVERTENCIA: ARCHIVO TRUNCADO POR EXCESO DE TAMAÑO]..."
+                        # Con num_ctx=8192, tenemos espacio para la base de conocimientos y el código.
+                        # 14,000 caracteres aseguran que nos mantengamos por debajo de ~4k-5k tokens.
+                        if len(content) > 14000:
+                            content = content[:14000] + "\n\n...[ADVERTENCIA: ARCHIVO TRUNCADO. MUY VOLUMINOSO.]..."
 
                         result = chain.invoke({"question": content, "file_name": rel_path})
                         
