@@ -57,7 +57,7 @@ def run_audit():
 
     chain = (
         {
-            "context": (lambda x: x["question"]) | retriever, 
+            "context": (lambda x: f"Reglas de desarrollo, buenas prácticas de arquitectura y seguridad aplicables a {x['file_name']}") | retriever, 
             "question": lambda x: x["question"],
             "file_name": lambda x: x["file_name"]
         }
