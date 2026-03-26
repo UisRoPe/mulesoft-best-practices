@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import re
+import json
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings, ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
@@ -46,37 +47,45 @@ def run_audit():
     # Expandimos num_ctx a 8192 (aprox 8k tokens) para permitir archivos más largos sin quebrar el modelo
     llm = ChatOllama(model=MODEL_NAME, temperature=0, num_predict=1500, num_ctx=8192)
 
-    # 1. Prompt diseñado para Tablas de Acción
-    template = """
-    Eres un Arquitecto de Soluciones Senior. Tu misión es auditar el archivo '{file_name}' \
-contrastándolo con las BUENAS PRÁCTICAS del contexto.
+    # Prompt profesional con formato estándar de auditoría
+    template = """Eres un Arquitecto de Soluciones Senior especializado en MuleSoft e integración empresarial.
+Tu tarea es realizar una revisión técnica formal del archivo `{file_name}` aplicando los estándares corporativos del CONTEXTO.
 
-    CONTEXTO TÉCNICO:
-    {context}
+---
+ESTÁNDARES DE REFERENCIA (base de conocimiento corporativa):
+{context}
 
-    CÓDIGO A EVALUAR:
-    {question}
+---
+ARTEFACTO A REVISAR — `{file_name}`:
+{question}
 
-    REGLAS DE SALIDA — LEE CON ATENCIÓN ANTES DE RESPONDER:
+---
+INSTRUCCIONES DE RESPUESTA — OBLIGATORIO CUMPLIR AL PIE DE LA LETRA:
 
-    REGLA 1: Tu respuesta COMPLETA debe ser ÚNICAMENTE una tabla Markdown. NADA MÁS.
-    REGLA 2: PROHIBIDO escribir texto antes o después de la tabla (introduciones, conclusiones, comentarios).
-    REGLA 3: PROHIBIDO fusionar varias celdas en una sola línea. Cada fila DEBE ocupar su propia línea.
-    REGLA 4: Cada fila DEBE seguir exactamente este formato (5 columnas separadas por |):
-    | Alta | Seguridad | Descripción del hallazgo | `fragmento` | Acción concreta |
-    REGLA 5: Si el archivo CUMPLE con todo, responde ÚNICAMENTE con el texto: ✅ CUMPLE
+1. Si el archivo cumple con todos los estándares aplicables, responde ÚNICAMENTE con esta línea:
+   ✅ CUMPLE — Sin observaciones para `{file_name}`.
 
-    FORMATO OBLIGATORIO DE LA TABLA:
-    | Prioridad | Categoría | Hallazgo/Observación | Fragmento de Código | Acción Sugerida para el Dev |
-    | :--- | :--- | :--- | :--- | :--- |
-    | Alta | Seguridad | Ejemplo de hallazgo | `código aquí` | Acción concreta aquí |
+2. Si existen observaciones, responde ÚNICAMENTE con la tabla Markdown siguiente, sin ningún texto antes ni después:
 
-    Columnas:
-    - Prioridad: Alta | Media | Baja
-    - Categoría: Seguridad | Performance | Estándar | Conectividad
-    - Fragmento de Código: usa backticks inline. Si es largo, muestra solo la parte relevante.
-    - Acción Sugerida: sé directo y técnico (ej: "Mover credencial a Secure Properties").
-    """
+| # | Severidad | Categoría | Hallazgo | Fragmento de Código | Acción Recomendada | Esfuerzo |
+| :---: | :---: | :--- | :--- | :--- | :--- | :---: |
+| 1 | 🔴 Alta | Seguridad | Descripción clara y específica del problema encontrado | `fragmento relevante` | Acción concreta y técnica | Alto |
+
+DEFINICIONES DE COLUMNAS:
+- **#**: Número secuencial del hallazgo (1, 2, 3…).
+- **Severidad**: 🔴 Alta (riesgo en producción / seguridad) | 🟡 Media (deuda técnica importante) | 🟢 Baja (mejora de calidad).
+- **Categoría**: Seguridad | Manejo de Errores | Rendimiento | Estándares de Nomenclatura | Logging | Configuración | Conectividad | Documentación.
+- **Hallazgo**: Descripción técnica precisa. Referencia el estándar incumplido si aplica.
+- **Fragmento de Código**: Usa backticks inline con el fragmento exacto que origina el hallazgo. Máximo 80 caracteres.
+- **Acción Recomendada**: Instrucción técnica directa y accionable (ej: "Externalizar a `secure::db.password` en Secure Properties Store").
+- **Esfuerzo**: Alto | Medio | Bajo.
+
+RESTRICCIONES ABSOLUTAS:
+- PROHIBIDO agregar encabezados, introducción, conclusión o comentarios fuera de la tabla.
+- PROHIBIDO combinar múltiples hallazgos en una sola fila.
+- PROHIBIDO generar filas vacías o con datos de ejemplo.
+- Cada fila DEBE ocupar exactamente una línea en el Markdown.
+"""
     prompt = ChatPromptTemplate.from_template(template)
 
     chain = (
@@ -134,7 +143,6 @@ contrastándolo con las BUENAS PRÁCTICAS del contexto.
 
                     # Reportar progreso global
                     try:
-                        import json
                         os.makedirs(REPORTS_DIR, exist_ok=True)
                         with open(os.path.join(REPORTS_DIR, ".progress"), "w") as f_prog:
                             json.dump({"current": current_file, "total": total_files, "file": rel_path}, f_prog)
@@ -158,9 +166,10 @@ contrastándolo con las BUENAS PRÁCTICAS del contexto.
                         
                         # Solo añadimos al reporte si hay algo que corregir
                         if "✅" not in result:
-                            count_alta += len(re.findall(r'\|\s*Alta\s*\|', result, re.IGNORECASE))
-                            count_media += len(re.findall(r'\|\s*Media\s*\|', result, re.IGNORECASE))
-                            count_baja += len(re.findall(r'\|\s*Baja\s*\|', result, re.IGNORECASE))
+                            # Regex robusto: busca en filas de datos (empiezan con | número |)
+                            count_alta  += len(re.findall(r'^\|[^|]*\d+[^|]*\|[^|]*Alta[^|]*\|',  result, re.IGNORECASE | re.MULTILINE))
+                            count_media += len(re.findall(r'^\|[^|]*\d+[^|]*\|[^|]*Media[^|]*\|', result, re.IGNORECASE | re.MULTILINE))
+                            count_baja  += len(re.findall(r'^\|[^|]*\d+[^|]*\|[^|]*Baja[^|]*\|',  result, re.IGNORECASE | re.MULTILINE))
                             full_report += f"### 📄 Archivo: `{rel_path}`\n\n{result}\n\n"
                     except Exception as e:
                         print(f"  ❌ Error: {e}")
@@ -172,39 +181,35 @@ contrastándolo con las BUENAS PRÁCTICAS del contexto.
         elif count_media > 0:
             status = "🟡 Riesgo Medio"
 
+        total_hallazgos = count_alta + count_media + count_baja
+
         dashboard = f"""## 📊 Resumen Ejecutivo
 
-<div style="display: flex; gap: 10px; margin-bottom: 20px;">
-    <div style="flex: 1; background: rgba(255, 50, 50, 0.1); border: 1px solid rgba(255, 50, 50, 0.5); padding: 15px; border-radius: 8px; text-align: center;">
-        <h3 style="margin: 0; color: #ff5555; font-size: 2em;">{count_alta}</h3>
-        <span style="color: #ff5555; font-weight: bold;">Criticidad Alta</span>
-    </div>
-    <div style="flex: 1; background: rgba(255, 165, 0, 0.1); border: 1px solid rgba(255, 165, 0, 0.5); padding: 15px; border-radius: 8px; text-align: center;">
-        <h3 style="margin: 0; color: #ffaa00; font-size: 2em;">{count_media}</h3>
-        <span style="color: #ffaa00; font-weight: bold;">Criticidad Media</span>
-    </div>
-    <div style="flex: 1; background: rgba(0, 200, 0, 0.1); border: 1px solid rgba(0, 200, 0, 0.5); padding: 15px; border-radius: 8px; text-align: center;">
-        <h3 style="margin: 0; color: #00cc00; font-size: 2em;">{count_baja}</h3>
-        <span style="color: #00cc00; font-weight: bold;">Criticidad Baja</span>
-    </div>
-</div>
-
-### 🎯 Estatus General del Proyecto
-**Estado actual:** {status}
+| Indicador | Valor |
+| :--- | :--- |
+| **Proyecto auditado** | `{project_name}` |
+| **Total de hallazgos** | **{total_hallazgos}** |
+| 🔴 Severidad Alta | **{count_alta}** hallazgo{"s" if count_alta != 1 else ""} |
+| 🟡 Severidad Media | **{count_media}** hallazgo{"s" if count_media != 1 else ""} |
+| 🟢 Severidad Baja | **{count_baja}** hallazgo{"s" if count_baja != 1 else ""} |
+| **Estatus general** | {status} |
 
 """
         if count_alta > 0:
-            dashboard += "El proyecto presenta **Riesgo Alto** debido a vulnerabilidades u observaciones críticas. Se requiere intervención y refactorización inmediata.\n\n"
+            dashboard += "> ⚠️ **Riesgo Crítico** — El proyecto presenta vulnerabilidades de alta severidad que requieren atención inmediata antes del próximo pase a producción.\n\n"
         elif count_media > 0:
-            dashboard += "El proyecto presenta **Riesgo Medio**. Se recomienda planificar refactorizaciones a corto plazo para evitar acumulación de deuda técnica.\n\n"
+            dashboard += "> 🔶 **Riesgo Medio** — Se recomienda planificar sesiones de refactorización a corto plazo para evitar acumulación de deuda técnica.\n\n"
         else:
-            dashboard += "El proyecto presenta **Riesgo Bajo/Saludable**. El código se encuentra alineado a las buenas prácticas.\n\n"
+            dashboard += "> ✅ **Saludable** — El código está alineado con las buenas prácticas corporativas.\n\n"
 
-        dashboard += """### 📋 Tareas de Acciones Futuras
-- [ ] 🔴 **Alta prioridad:** Revisar y corregir todos los hallazgos de "Criticidad Alta" antes del próximo pase a producción.
-- [ ] 🟡 **Media prioridad:** Agendar sesiones de code-review para los hallazgos de "Criticidad Media".
-- [ ] 🟢 **Mejora continua:** Planificar la corrección de los hallazgos de "Criticidad Baja" durante los tiempos de holgura.
-- [ ] 🔁 **Validación:** Ejecutar el Auditor IA nuevamente después de aplicar correcciones corporativas.
+        dashboard += f"""### 📋 Plan de Acción
+
+| Prioridad | Tarea | Responsable |
+| :---: | :--- | :--- |
+| 🔴 Alta | Corregir los **{count_alta}** hallazgo{"s" if count_alta != 1 else ""} de severidad Alta antes del próximo release | Dev / Arquitecto |
+| 🟡 Media | Agendar code-review para los **{count_media}** hallazgo{"s" if count_media != 1 else ""} de severidad Media | Dev Lead |
+| 🟢 Baja | Planificar corrección de los **{count_baja}** hallazgo{"s" if count_baja != 1 else ""} de severidad Baja en tiempos de holgura | Dev |
+| 🔁 Validación | Re-ejecutar Auditor IA tras aplicar correcciones | QA / Arquitecto |
 
 ---
 

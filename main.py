@@ -5,10 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import zipfile
 import os
+import sys
 import subprocess
 import glob
-import glob
 import asyncio
+import json
+
+# Use the same Python interpreter that's running this server
+PYTHON = sys.executable
 
 active_audit_process = None
 
@@ -47,7 +51,6 @@ async def get_progress():
     progress_file = "projects/reports/.progress"
     if os.path.exists(progress_file):
         try:
-            import json
             with open(progress_file, "r") as f:
                 data = json.load(f)
             return data
@@ -128,7 +131,6 @@ async def upload_project(model: str = Form(...), file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al descomprimir: {str(e)}")
 
-    import json
     progress_file = "projects/reports/.progress"
     try:
         os.makedirs("projects/reports", exist_ok=True)
@@ -140,10 +142,10 @@ async def upload_project(model: str = Form(...), file: UploadFile = File(...)):
     global active_audit_process
     try:
         active_audit_process = subprocess.Popen(
-            ["python", "scripts/audit_project.py", model, project_name]
+            [PYTHON, "scripts/audit_project.py", model, project_name]
         )
         # Wait without blocking the event loop
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         returncode = await loop.run_in_executor(None, active_audit_process.wait)
         active_audit_process = None
         if returncode != 0 and returncode != -15:
@@ -166,7 +168,6 @@ async def list_projects():
 async def delete_project(project_name: str):
     dir_path = os.path.join("projects/input", project_name)
     if os.path.isdir(dir_path):
-        import shutil
         shutil.rmtree(dir_path)
         return {"status": "success", "message": "Proyecto eliminado."}
     raise HTTPException(status_code=404, detail="El proyecto no existe.")
@@ -195,7 +196,6 @@ async def audit_existing(model: str = Form(...), project_name: str = Form(...)):
     if not os.path.isdir(os.path.join(input_dir, project_name)):
         raise HTTPException(status_code=404, detail="El proyecto no existe localmente.")
         
-    import json
     progress_file = "projects/reports/.progress"
     try:
         os.makedirs("projects/reports", exist_ok=True)
@@ -207,9 +207,9 @@ async def audit_existing(model: str = Form(...), project_name: str = Form(...)):
     global active_audit_process
     try:
         active_audit_process = subprocess.Popen(
-            ["python", "scripts/audit_project.py", model, project_name]
+            [PYTHON, "scripts/audit_project.py", model, project_name]
         )
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         returncode = await loop.run_in_executor(None, active_audit_process.wait)
         active_audit_process = None
         if returncode != 0 and returncode != -15:
@@ -228,7 +228,6 @@ def cancel_audit():
     if active_audit_process:
         active_audit_process.terminate()
         active_audit_process = None
-        import json
         progress_file = "projects/reports/.progress"
         try:
             with open(progress_file, "w") as f:
@@ -258,7 +257,7 @@ async def upload_knowledge(model: str = Form(...), files: list[UploadFile] = Fil
 
     try:
         process = subprocess.run(
-            ["python", "scripts/index_docs.py", model]
+            [PYTHON, "scripts/index_docs.py", model]
         )
         if process.returncode != 0:
             return {"status": "error", "logs": "Falló la indexación. Revisa los logs de la consola."}
@@ -321,6 +320,102 @@ async def download_report(report_name: str):
     if not os.path.exists(report_path):
         raise HTTPException(status_code=404, detail="Reporte no encontrado")
     return FileResponse(path=report_path, filename=report_name, media_type='text/markdown')
+
+# ─── Checklist de Reglas ──────────────────────────────────────────────────────
+
+@app.get("/rules")
+async def get_rules():
+    """Retorna todos los fragmentos de conocimiento almacenados en ChromaDB."""
+    if not os.path.exists("db"):
+        return {"rules": [], "error": "No hay base de conocimiento indexada. Sube PDFs en 'Nutrir IA' primero."}
+    try:
+        import chromadb
+        client = chromadb.PersistentClient(path="db")
+        collections = client.list_collections()
+        if not collections:
+            return {"rules": [], "error": "La base de conocimiento está vacía."}
+
+        col_name = collections[0].name if hasattr(collections[0], "name") else str(collections[0])
+        collection = client.get_collection(col_name)
+        result = collection.get(include=["documents", "metadatas"])
+
+        documents = result.get("documents") or []
+        ids       = result.get("ids")       or []
+        metadatas = result.get("metadatas") or []
+
+        rules = []
+        for i, doc in enumerate(documents):
+            if not doc:
+                continue
+            source = ""
+            try:
+                meta = metadatas[i] if metadatas and i < len(metadatas) else {}
+                raw  = (meta or {}).get("source", "")
+                source = os.path.basename(raw) if raw else ""
+            except Exception:
+                pass
+            rules.append({
+                "id":     ids[i] if i < len(ids) else str(i),
+                "text":   doc,
+                "source": source,
+            })
+
+        return {"rules": rules, "total": len(rules)}
+    except Exception as e:
+        return {"rules": [], "error": str(e)}
+
+
+@app.get("/rules/checklist")
+async def get_checklist():
+    """Carga el estado guardado del checklist."""
+    checklist_path = "projects/reports/checklist.json"
+    if os.path.exists(checklist_path):
+        with open(checklist_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"selections": {}}
+
+
+@app.post("/rules/checklist")
+async def save_checklist(request: Request):
+    """Persiste el estado del checklist (selections + texts de reglas)."""
+    data = await request.json()
+    checklist_path = "projects/reports/checklist.json"
+    os.makedirs("projects/reports", exist_ok=True)
+    with open(checklist_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return {"status": "success", "message": "Checklist guardado correctamente."}
+
+
+@app.post("/generate_final_doc")
+async def generate_final_doc_endpoint(model: str = Form(...), report_name: str = Form(...)):
+    """Genera un Documento Final de Gobernanza a partir del checklist + reporte de auditoría."""
+    report_path = os.path.join("projects/reports", report_name)
+    if not os.path.exists(report_path):
+        raise HTTPException(status_code=404, detail="Reporte de auditoría no encontrado.")
+
+    checklist_path = "projects/reports/checklist.json"
+    if not os.path.exists(checklist_path):
+        raise HTTPException(
+            status_code=400,
+            detail="No hay checklist guardado. Ve a la pestaña 'Checklist', clasifica las reglas y guarda la selección.",
+        )
+
+    try:
+        process = subprocess.run(
+            [PYTHON, "scripts/generate_final_doc.py", model, report_name],
+            capture_output=True, text=True,
+        )
+        if process.returncode != 0:
+            return {"status": "error", "logs": process.stderr or "Error al generar el documento final."}
+
+        final_doc_name = report_name.replace("Matriz_Hallazgos_", "Documento_Final_")
+        if not final_doc_name.startswith("Documento_Final_"):
+            final_doc_name = "Documento_Final_" + report_name
+
+        return {"status": "success", "document": final_doc_name}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     import uvicorn
