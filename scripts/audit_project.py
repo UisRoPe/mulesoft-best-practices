@@ -1,6 +1,7 @@
 import os
 import sys
 import subprocess
+import re
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings, ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
@@ -113,6 +114,9 @@ contrastándolo con las BUENAS PRÁCTICAS del contexto.
 
     for project_name in projects:
         print(f"📁 Analizando Proyecto: {project_name}")
+        count_alta = 0
+        count_media = 0
+        count_baja = 0
         full_report = f"# 🛡️ Reporte de Deuda Técnica: {project_name}\n\n"
         full_report += "Este reporte contiene los hallazgos detectados por IA basados en los manuales de seguridad y desarrollo corporativos.\n\n"
         
@@ -154,11 +158,59 @@ contrastándolo con las BUENAS PRÁCTICAS del contexto.
                         
                         # Solo añadimos al reporte si hay algo que corregir
                         if "✅" not in result:
+                            count_alta += len(re.findall(r'\|\s*Alta\s*\|', result, re.IGNORECASE))
+                            count_media += len(re.findall(r'\|\s*Media\s*\|', result, re.IGNORECASE))
+                            count_baja += len(re.findall(r'\|\s*Baja\s*\|', result, re.IGNORECASE))
                             full_report += f"### 📄 Archivo: `{rel_path}`\n\n{result}\n\n"
                     except Exception as e:
                         print(f"  ❌ Error: {e}")
 
         # Guardar resultado consolidado
+        status = "🟢 Saludable"
+        if count_alta > 0:
+            status = "🔴 Riesgo Crítico"
+        elif count_media > 0:
+            status = "🟡 Riesgo Medio"
+
+        dashboard = f"""## 📊 Resumen Ejecutivo
+
+<div style="display: flex; gap: 10px; margin-bottom: 20px;">
+    <div style="flex: 1; background: rgba(255, 50, 50, 0.1); border: 1px solid rgba(255, 50, 50, 0.5); padding: 15px; border-radius: 8px; text-align: center;">
+        <h3 style="margin: 0; color: #ff5555; font-size: 2em;">{count_alta}</h3>
+        <span style="color: #ff5555; font-weight: bold;">Criticidad Alta</span>
+    </div>
+    <div style="flex: 1; background: rgba(255, 165, 0, 0.1); border: 1px solid rgba(255, 165, 0, 0.5); padding: 15px; border-radius: 8px; text-align: center;">
+        <h3 style="margin: 0; color: #ffaa00; font-size: 2em;">{count_media}</h3>
+        <span style="color: #ffaa00; font-weight: bold;">Criticidad Media</span>
+    </div>
+    <div style="flex: 1; background: rgba(0, 200, 0, 0.1); border: 1px solid rgba(0, 200, 0, 0.5); padding: 15px; border-radius: 8px; text-align: center;">
+        <h3 style="margin: 0; color: #00cc00; font-size: 2em;">{count_baja}</h3>
+        <span style="color: #00cc00; font-weight: bold;">Criticidad Baja</span>
+    </div>
+</div>
+
+### 🎯 Estatus General del Proyecto
+**Estado actual:** {status}
+
+"""
+        if count_alta > 0:
+            dashboard += "El proyecto presenta **Riesgo Alto** debido a vulnerabilidades u observaciones críticas. Se requiere intervención y refactorización inmediata.\n\n"
+        elif count_media > 0:
+            dashboard += "El proyecto presenta **Riesgo Medio**. Se recomienda planificar refactorizaciones a corto plazo para evitar acumulación de deuda técnica.\n\n"
+        else:
+            dashboard += "El proyecto presenta **Riesgo Bajo/Saludable**. El código se encuentra alineado a las buenas prácticas.\n\n"
+
+        dashboard += """### 📋 Tareas de Acciones Futuras
+- [ ] 🔴 **Alta prioridad:** Revisar y corregir todos los hallazgos de "Criticidad Alta" antes del próximo pase a producción.
+- [ ] 🟡 **Media prioridad:** Agendar sesiones de code-review para los hallazgos de "Criticidad Media".
+- [ ] 🟢 **Mejora continua:** Planificar la corrección de los hallazgos de "Criticidad Baja" durante los tiempos de holgura.
+- [ ] 🔁 **Validación:** Ejecutar el Auditor IA nuevamente después de aplicar correcciones corporativas.
+
+---
+
+"""
+        full_report = full_report.replace("desarrollo corporativos.\n\n", "desarrollo corporativos.\n\n" + dashboard)
+
         os.makedirs(REPORTS_DIR, exist_ok=True)
         out_path = os.path.join(REPORTS_DIR, f"Matriz_Hallazgos_{project_name}.md")
         with open(out_path, "w") as f:
