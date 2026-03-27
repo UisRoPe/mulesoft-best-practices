@@ -509,11 +509,31 @@ async def generate_tasks_endpoint(model: str = Form(...), report_name: str = For
         if process.returncode != 0:
             return {"status": "error", "logs": process.stderr or "Error al generar tareas."}
 
-        tasks_filename = report_name.replace("Matriz_Hallazgos_", "Tareas_")
-        if not tasks_filename.startswith("Tareas_"):
-            tasks_filename = "Tareas_" + report_name
+        project_name = report_name.replace("Matriz_Hallazgos_", "").replace(".md", "")
+        tasks_filename = f"Tareas_{project_name}.md"
+        tasks_json_filename = f"Tareas_{project_name}.json"
 
-        return {"status": "success", "filename": tasks_filename}
+        return {
+            "status": "success",
+            "filename": tasks_filename,
+            "json_filename": tasks_json_filename,
+            "project": project_name
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/tasks/{json_filename}")
+async def get_tasks(json_filename: str):
+    """Obtiene las tareas parseadas en JSON."""
+    tasks_path = os.path.join("projects/reports", json_filename)
+    if not os.path.exists(tasks_path):
+        raise HTTPException(status_code=404, detail="Archivo de tareas no encontrado.")
+    
+    try:
+        with open(tasks_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return JSONResponse(content=data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

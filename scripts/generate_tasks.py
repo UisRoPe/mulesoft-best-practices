@@ -10,6 +10,36 @@ from langchain_core.output_parsers import StrOutputParser
 REPORTS_DIR = "projects/reports"
 
 
+def parse_tasks_from_markdown(content):
+    """Extrae tareas de la estructura Markdown generada."""
+    tasks = []
+    task_id_counter = 1
+    
+    # Buscar filas de tabla Markdown con formato: | ID | Hallazgo | ...
+    table_pattern = r'\|\s*([TP\-\d]+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*([☐✓]+)\s*\|'
+    matches = re.finditer(table_pattern, content, re.MULTILINE)
+    
+    for match in matches:
+        task_id = match.group(1).strip()
+        hallazgo = match.group(2).strip()
+        archivo = match.group(3).strip()
+        accion = match.group(4).strip()
+        tiempo = match.group(5).strip()
+        status = match.group(6).strip()
+        
+        tasks.append({
+            'id': task_id,
+            'hallazgo': hallazgo,
+            'archivo': archivo,
+            'accion': accion,
+            'tiempo': tiempo,
+            'status': status,
+            'aplica': False  # Por defecto sin seleccionar
+        })
+    
+    return tasks
+
+
 def generate_tasks():
     MODEL_NAME = sys.argv[1] if len(sys.argv) > 1 else "llama3.1"
     REPORT_NAME = sys.argv[2] if len(sys.argv) > 2 else None
@@ -93,7 +123,7 @@ INSTRUCCIONES CRÍTICAS:
         "audit_report": report_content,
     })
 
-    # ── Guardar tareas ───────────────────────────────────────────────────────
+    # ── Guardar tareas en Markdown ──────────────────────────────────────────
     project_name = REPORT_NAME.replace("Matriz_Hallazgos_", "").replace(".md", "")
     tasks_filename = f"Tareas_{project_name}.md"
     tasks_path = os.path.join(REPORTS_DIR, tasks_filename)
@@ -115,8 +145,25 @@ INSTRUCCIONES CRÍTICAS:
     with open(tasks_path, "w", encoding="utf-8") as f:
         f.write(header + result)
 
-    print(f"\n✨ Tareas generadas: {tasks_path}")
+    print(f"\n✨ Markdown generado: {tasks_path}")
+
+    # ── Parsear y guardar como JSON ────────────────────────────────────────
+    tasks_json_filename = f"Tareas_{project_name}.json"
+    tasks_json_path = os.path.join(REPORTS_DIR, tasks_json_filename)
+    
+    tasks_list = parse_tasks_from_markdown(result)
+    
+    with open(tasks_json_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "filename": tasks_filename,
+            "project": project_name,
+            "tasks": tasks_list
+        }, f, ensure_ascii=False, indent=2)
+
+    print(f"📄 JSON generado: {tasks_json_path}")
+    print(f"📊 Total de tareas: {len(tasks_list)}")
 
 
 if __name__ == "__main__":
     generate_tasks()
+

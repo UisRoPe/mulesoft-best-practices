@@ -725,11 +725,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Generate tasks button
     document.getElementById('btn-generate-tasks')?.addEventListener('click', triggerGenerateTasks);
+    document.getElementById('btn-select-all-tasks')?.addEventListener('click', () => selectAllTasks(true));
+    document.getElementById('btn-deselect-all-tasks')?.addEventListener('click', () => selectAllTasks(false));
+    document.getElementById('btn-export-csv')?.addEventListener('click', exportTasksToCSV);
+    document.getElementById('tasks-search')?.addEventListener('input', filterTasks);
 
     function syncTasksButton() {
         const has = !!window.activeReportName;
         document.getElementById('btn-generate-tasks')?.toggleAttribute('disabled', !has);
     }
+
+    let allTasks = [];
 
     async function triggerGenerateTasks() {
         if (!window.activeReportName) {
@@ -756,8 +762,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (res.ok && data.status === 'success') {
-                alert(`✅ Tareas generadas:\n${data.filename}\n\nBúscalas en Reportes.`);
-                loadReports();
+                // Cargar las tareas desde JSON
+                await loadTasksFromJSON(data.json_filename);
+                // Mostrar vista de tareas
+                showTasksView();
             } else {
                 alert('Error: ' + (data.logs || data.detail || 'Error desconocido.'));
             }
@@ -770,4 +778,132 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function loadTasksFromJSON(jsonFilename) {
+        try {
+            const res = await fetch(`/tasks/${jsonFilename}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            if (!res.ok) throw new Error('Error al cargar tareas');
+            
+            const data = await res.json();
+            allTasks = data.tasks || [];
+            
+            document.getElementById('tasks-title').textContent = `Plan de Tareas — ${data.project}`;
+            renderTasks(allTasks);
+        } catch (err) {
+            alert('Error cargando tareas: ' + err.message);
+        }
+    }
+
+    function renderTasks(tasks) {
+        const list = document.getElementById('tasks-list');
+        const empty = document.getElementById('tasks-empty');
+        const loading = document.getElementById('tasks-loading');
+        
+        loading.classList.add('hidden');
+        
+        if (!tasks || tasks.length === 0) {
+            empty.classList.remove('hidden');
+            list.classList.add('hidden');
+            return;
+        }
+        
+        empty.classList.add('hidden');
+        list.innerHTML = '';
+        
+        tasks.forEach(task => {
+            const li = document.createElement('li');
+            li.className = 'task-item';
+            li.innerHTML = `
+                <div class="task-content">
+                    <div class="task-header">
+                        <input type="checkbox" class="task-checkbox" data-task-id="${task.id}">
+                        <span class="task-id">${task.id}</span>
+                        <span class="task-hallazgo">${task.hallazgo}</span>
+                    </div>
+                    <div class="task-details">
+                        <span class="task-label">Archivo:</span> <code>${task.archivo}</code>
+                    </div>
+                    <div class="task-details">
+                        <span class="task-label">Acción:</span> ${task.accion}
+                    </div>
+                    <div class="task-details">
+                        <span class="task-label">Tiempo estimado:</span> ${task.tiempo}
+                    </div>
+                </div>
+            `;
+            
+            const checkbox = li.querySelector('.task-checkbox');
+            checkbox.addEventListener('change', (e) => {
+                const taskId = e.target.dataset.taskId;
+                const idx = allTasks.findIndex(t => t.id === taskId);
+                if (idx !== -1) {
+                    allTasks[idx].aplica = e.target.checked;
+                }
+            });
+            
+            list.appendChild(li);
+        });
+        
+        list.classList.remove('hidden');
+    }
+
+    function filterTasks() {
+        const search = (document.getElementById('tasks-search')?.value || '').toLowerCase();
+        const filtered = allTasks.filter(t => 
+            t.id.toLowerCase().includes(search) ||
+            t.hallazgo.toLowerCase().includes(search) ||
+            t.archivo.toLowerCase().includes(search)
+        );
+        renderTasks(filtered);
+    }
+
+    function selectAllTasks(value) {
+        document.querySelectorAll('.task-checkbox').forEach(cb => {
+            cb.checked = value;
+            const taskId = cb.dataset.taskId;
+            const idx = allTasks.findIndex(t => t.id === taskId);
+            if (idx !== -1) allTasks[idx].aplica = value;
+        });
+    }
+
+    function exportTasksToCSV() {
+        const selected = allTasks.filter(t => t.aplica);
+        if (selected.length === 0) {
+            alert('Selecciona al menos una tarea para exportar.');
+            return;
+        }
+
+        const headers = ['ID', 'Hallazgo', 'Archivo', 'Acción', 'Tiempo Estimado', 'Status'];
+        const rows = selected.map(t => [
+            t.id,
+            `"${t.hallazgo}"`,
+            t.archivo,
+            `"${t.accion}"`,
+            t.tiempo,
+            '☐'
+        ]);
+
+        let csv = headers.join(',') + '\n';
+        rows.forEach(row => csv += row.join(',') + '\n');
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `tareas-${allTasks[0]?.id || 'export'}.csv`);
+        link.click();
+    }
+
+    function showTasksView() {
+        // Ocultar vista de reportes
+        document.querySelectorAll('.main-view').forEach(v => v.classList.add('hidden'));
+        document.getElementById('view-tasks')?.classList.remove('hidden');
+        
+        // Ocultar topbar de reporte
+        document.getElementById('report-topbar').classList.add('hidden');
+        document.getElementById('welcome-header').classList.add('hidden');
+    }
+
 });
+

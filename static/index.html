@@ -233,6 +233,33 @@
             <div id="report-content" class="markdown-body hidden"></div>
         </div>
 
+        <!-- ── VIEW: Tareas ── -->
+        <div id="view-tasks" class="main-view hidden">
+            <div class="tasks-container">
+                <div class="tasks-header">
+                    <h2 id="tasks-title">Plan de Tareas de Desarrollo</h2>
+                    <div class="tasks-toolbar">
+                        <input type="text" id="tasks-search" class="search-input" placeholder="Buscar tarea…">
+                        <div class="tasks-actions">
+                            <button id="btn-select-all-tasks" class="btn-secondary">✓ Seleccionar todas</button>
+                            <button id="btn-deselect-all-tasks" class="btn-secondary">✗ Deseleccionar todas</button>
+                            <button id="btn-export-csv" class="btn-primary">📥 Exportar CSV (seleccionadas)</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="tasks-loading" class="hidden loader-center">
+                    <div class="spinner"></div><span>Cargando tareas…</span>
+                </div>
+                
+                <div id="tasks-list" class="tasks-grid hidden"></div>
+                
+                <div id="tasks-empty" class="hidden checklist-empty-msg">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h6m-6 4h6M9 8h6M9 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>
+                    <p>No hay tareas generadas aún.</p>
+                </div>
+            </div>
+        </div>
 
 
     </main>
