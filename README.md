@@ -6,56 +6,129 @@ Este proyecto permite ingerir manuales corporativos (PDFs), vectorizarlos utiliz
 
 ---
 
-## ⚡️ Características Premium
-- **Diseño Cyberpunk Brutalista:** Interfaz de usuario inmersiva con overlay de monitores CRT de seguridad, botones mecánicos animados y una mini-consola hacker en tiempo real.
-- **Arquitectura RAG Desacoplada:** El sistema separa matemáticamente los Embeddings del modelo de Chat. Utiliza `nomic-embed-text` para construir la base de conocimiento ChromaDB, permitiéndote auditar el mismo proyecto turnando entre cualquier modelo de IA instantáneamente sin romper los vectores.
-- **Multihilo "Non-Blocking" (Subprocesos):** FastAPI envía las auditorías masivas a su *ThreadPoolExecutor*. Esto libera la aplicación web para pintar los logs en la interfaz gráfica archivo-por-archivo en tiempo real.
-- **Frenado de Emergencia (SIGTERM):** Un botón 🛑 en el visor permite liquidar limpiamente el análisis de la IA en pleno vuelo sin corromper la memoria del servidor.
-- **Protección de Contexto:** Protección nativa contra el "Context Length Exceeded" que trunca archivos monstruosamente largos (como `application-types.xml`) para modelos ligeros (1B).
+## ⚡️ Características
+- **Diseño Cyberpunk Interactivo:** Interfaz inmersiva con controles en tiempo real
+- **Arquitectura RAG Desacoplada:** Separación matemática de Embeddings y modelos de Chat
+  - Embeddings: `nomic-embed-text` con ChromaDB
+  - Auditoría con modelos intercambiables (Llama 3.1, Qwen 2.5, etc.)
+- **Multihilo No-Bloqueante:** FastAPI con ThreadPoolExecutor para análisis en tiempo real
+- **Frenado de Emergencia:** Detener análisis en progreso sin corromper memoria
+- **Protección de Contexto:** Truncamiento inteligente para modelos ligeros
 
 ---
 
-## 🚀 Instalación y Despliegue en 1 Clic
+## 🚀 Inicio Rápido
 
-Con la versión actual, **ya no necesitas usar la consola.** El portal web se encarga de todo.
+### 1. Primer Arranque
+```bash
+bash start.sh
+```
+El script detectará si necesita dependencias y las instalará automáticamente.
 
-1. Abre una terminal y colócate dentro de este repositorio.
-2. Inicia el servidor maestro:
-   ```bash
-   bash start.sh
-   # (Si prefieres uso manual: source venv/bin/activate && python main.py)
-   ```
-3. Dirígete a **http://localhost:8000**
-4. Credenciales de acceso:
-   * **Usuario:** `admin`
-   * **Password:** `admin`
+### 2. Acceder al Portal
+- **URL:** http://localhost:8000
+- **Usuario:** `admin`
+- **Contraseña:** `admin`
 
-*(Durante tu primer inicio de sesión, el sistema descargará el motor base y preparará el entorno visualmente).*
+### 3. Flujo de Operación
 
----
+#### 📚 Nutrir IA (Conocimiento Base)
+1. Ve a la pestaña **Nutrir IA**
+2. Sube tus PDFs (Manuales, Arquitectura, Políticas)
+3. El sistema crea un índice vectorial automáticamente
 
-## 🛠️ Flujo de Operación (Portal Web)
+#### 🔍 Auditar Código
+1. En **Nuevo Análisis**, carga un proyecto MuleSoft (`.zip`)
+2. Observa los descubrimientos en vivo en la consola
+3. Pausa o detén el análisis cuando lo necesites
 
-### 1. Seleccionar la IA (Sidebar)
-Puedes elegir libremente la *"inteligencia"* temporal que operará:
-- **Llama 3.1 (8B):** Para auditorías pesadas corporativas.
-- **Llama 3.2 (1B)** / **Qwen 2.5 (1.5B):** Modelos Edge ultrarrápidos para laptops, ideales para revisión de sintaxis y deuda técnica estándar.
-*(Si no tienes el modelo, el backend lo descargará bajo-demanda silenciosamente; verás el progreso de descarga en la consola).*
-
-### 2. Nutrir IA (Conocimiento Básico)
-1. Sube tus PDFs (Manuales de Seguridad, Arquitectura) en la pestaña **Nutrir IA**.
-2. El sistema creará un índice usando `nomic-embed-text`. Esto borra el índice anterior y asegura compatibilidad con cualquier modelo chat que escojas en el paso 1.
-
-### 3. Auditar Código
-1. En la pestaña **Nuevo Análisis**, arrastra un archivo `.zip` directo de Anypoint Studio. 
-2. Observa la consola renderizar los descubrimientos en vivo.
-3. Puedes **Pausar/Detener** la revisión desde la misma ventana.
-4. Explora todos los proyectos resguardados desde **Repositorios**, donde puedes editarlos, borrarlos y volverlos a auditar con otro modelo en paralelo.
-
-### 4. Reportes en Vivo
-Ve a la pestaña **Reportes** para leer la Matriz Markdown generada final. El visor de código ocupará todo el ancho para una fácil lectura técnica y permite un botón de descarga global.
+#### 📊 Ver Reportes
+1. Accede a **Reportes**
+2. Examina la Matriz de Hallazgos en Markdown
+3. Descarga el reporte completo
 
 ---
 
-> **Estructura Interna del Repositorio:**
-> `db/` (ChromaDB), `projects/` (Entorno estéril para zips e informes), `knowledge/` (PDFs crudos), `static/` (Arquitectura Frontend CSS+JS V2.2), `scripts/` (Núcleo Vectorial). *Las herramientas de IDE y agentes están ocultas por .gitignore.*
+## 🗂️ Estructura del Proyecto
+
+```
+.
+├── main.py                 # FastAPI - Servidor principal
+├── start.sh               # Script de arranque
+├── setup.sh               # Configuración de dependencias
+├── static/                # Frontend (HTML, CSS, JS)
+├── scripts/               # Core de auditoría
+│   ├── audit_project.py   # Lógica de auditoría
+│   ├── index_docs.py      # Indexación vectorial
+│   └── generate_final_doc.py  # Generación de reportes
+├── projects/              # Workspace
+│   ├── input/            # Proyectos subidos
+│   └── reports/          # Reportes generados
+├── knowledge/            # PDFs ingestionados
+├── db/                   # ChromaDB (vectores)
+└── venv/                 # Ambiente virtual
+```
+
+---
+
+## 📋 Requisitos Previos
+
+- **Python 3.9+**
+- **Ollama** instalado localmente (para modelos de IA)
+- **~5GB** de espacio disponible (para modelos y base de datos)
+
+---
+
+## 🔧 Desarrollo Manual
+
+Si prefieres controlar el proceso manualmente:
+
+```bash
+# 1. Activar ambiente virtual
+source venv/bin/activate
+
+# 2. Instalar dependencias (si es necesario)
+pip install -r requirements.txt
+
+# 3. Ejecutar servidor
+python main.py
+```
+
+---
+
+## 🎯 Modelos Disponibles
+
+| Modelo | Tamaño | Velocidad | Uso Recomendado |
+|--------|--------|-----------|-----------------|
+| **Llama 3.1** | 8B | Moderada | Auditorías profundas corporativas |
+| **Qwen 2.5** | 1.5B | Muy Rápida | Revisiones ágiles, laptops |
+| **Llama 3.2** | 1B | Muy Rápida | Edge computing, análisis sintáctico |
+
+> Los modelos se descargan automáticamente bajo demanda si no están disponibles localmente.
+
+---
+
+## 🛑 Controles de Emergencia
+
+- **Pausar Auditoría:** Click en el botón ⏸️ de la consola
+- **Detener Auditoría:** Click en el botón 🛑 de la consola
+- **Limpiar Índice:** Sube nuevos PDFs para regenerar
+
+---
+
+## 📝 Notas Técnicas
+
+- **ChromaDB**: Base de datos vectorial persistente en `db/`
+- **Ollama**: Gestiona modelos LLM localmente
+- **FastAPI**: Framework web asincrónico
+- **ThreadPoolExecutor**: Procesa auditorías sin bloquear UI
+
+---
+
+## 🤝 Soporte
+
+Para reportar problemas o sugerencias, crea un issue en el repositorio.
+
+---
+
+**Versión:** 2.0 | **Última actualización:** Marzo 2026

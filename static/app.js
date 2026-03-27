@@ -723,60 +723,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Generate tasks button
-    document.getElementById('btn-generate-tasks')?.addEventListener('click', triggerGenerateTasks);
     document.getElementById('btn-select-all-tasks')?.addEventListener('click', () => selectAllTasks(true));
     document.getElementById('btn-deselect-all-tasks')?.addEventListener('click', () => selectAllTasks(false));
     document.getElementById('btn-export-csv')?.addEventListener('click', exportTasksToCSV);
     document.getElementById('tasks-search')?.addEventListener('input', filterTasks);
 
-    function syncTasksButton() {
-        const has = !!window.activeReportName;
-        document.getElementById('btn-generate-tasks')?.toggleAttribute('disabled', !has);
-    }
-
     let allTasks = [];
-
-    async function triggerGenerateTasks() {
-        if (!window.activeReportName) {
-            alert('Primero abre un reporte en la pestaña Reportes.');
-            return;
-        }
-        if (!confirm(`¿Generar Tareas para los desarrolladores?\n\nReporte: ${window.activeReportName}`)) return;
-
-        const fd = new FormData();
-        fd.append('report_name', window.activeReportName);
-
-        const btn = document.getElementById('btn-generate-tasks');
-        const orig = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = '⏳ Generando tareas…';
-
-        try {
-            const res  = await fetch('/generate_tasks', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                body: fd
-            });
-            const data = await res.json();
-            if (res.ok && data.status === 'success') {
-                console.log('✅ Tareas generadas:', data);
-                // Cargar las tareas desde JSON
-                await loadTasksFromJSON(data.json_filename);
-                // Mostrar vista de tareas automáticamente
-                showTasksView();
-            } else {
-                alert('❌ Error: ' + (data.logs || data.detail || 'Error desconocido.'));
-            }
-        } catch (err) {
-            console.error('Error:', err);
-            alert('❌ Error de conexión al generar tareas.');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = orig;
-            syncTasksButton();
-        }
-    }
 
     async function loadTasksFromJSON(jsonFilename) {
         // Mostrar loading

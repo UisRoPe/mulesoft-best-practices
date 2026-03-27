@@ -494,34 +494,6 @@ async def generate_final_doc_endpoint(model: str = Form(...), report_name: str =
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/generate_tasks")
-async def generate_tasks_endpoint(model: str = Form(None), report_name: str = Form(...)):
-    """Genera tareas automáticas para los desarrolladores a partir del reporte de auditoría."""
-    report_path = os.path.join("projects/reports", report_name)
-    if not os.path.exists(report_path):
-        raise HTTPException(status_code=404, detail="Reporte de auditoría no encontrado.")
-
-    try:
-        # Ya no necesita modelo - parse directo del reporte
-        process = subprocess.run(
-            [PYTHON, "scripts/generate_tasks.py", report_name],
-            capture_output=True, text=True,
-        )
-        if process.returncode != 0:
-            return {"status": "error", "logs": process.stderr or "Error al generar tareas."}
-
-        project_name = report_name.replace("Matriz_Hallazgos_", "").replace(".md", "")
-        tasks_json_filename = f"Tareas_{project_name}.json"
-
-        return {
-            "status": "success",
-            "json_filename": tasks_json_filename,
-            "project": project_name
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.get("/tasks/{json_filename:path}")
 async def get_tasks(json_filename: str):
     """Obtiene las tareas parseadas en JSON."""
