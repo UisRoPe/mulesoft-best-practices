@@ -30,6 +30,8 @@ app.add_middleware(
 os.makedirs("projects/input", exist_ok=True)
 os.makedirs("projects/reports", exist_ok=True)
 os.makedirs("static", exist_ok=True)
+os.makedirs("knowledge", exist_ok=True)
+os.makedirs("db", exist_ok=True)
 
 # Mount static files (will hold our frontend)
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -239,31 +241,91 @@ def cancel_audit():
 
 @app.post("/upload_knowledge")
 async def upload_knowledge(model: str = Form(...), files: list[UploadFile] = File(...)):
+    print("\n" + "="*80)
+    print(f"📥 RECIBIENDO: /upload_knowledge (model={model}, archivos={len(files)})")
+    print("="*80)
+    
+    # Validar que hay PDFs
+    pdf_files_received = [f.filename for f in files if f.filename.endswith(".pdf")]
+    print(f"✅ PDFs recibidos: {pdf_files_received}")
+    
+    if not pdf_files_received:
+        print("❌ No hay PDFs en la solicitud")
+        return {"status": "error", "logs": "No se recibieron archivos PDF"}
+    
     # Limpiamos conocimientos anteriores y borramos la base de datos vectorial
+    print(f"\n🗑️  Limpiando directorios anteriores...")
     if os.path.exists("knowledge"):
         shutil.rmtree("knowledge")
+        print("   - Eliminado: knowledge/")
     if os.path.exists("db"):
         shutil.rmtree("db")
+        print("   - Eliminado: db/")
 
     os.makedirs("knowledge", exist_ok=True)
+    print("   - Creado: knowledge/")
     
     # Procesamos todos los archivos
+    print(f"\n💾 Guardando PDFs...")
+    saved_files = []
     for file in files:
         if not file.filename.endswith(".pdf"):
+            print(f"   ⏭️  Skipped (no es PDF): {file.filename}")
             continue
+        
         pdf_path = os.path.join("knowledge", file.filename)
+        file_size = 0
         with open(pdf_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            while True:
+                chunk = await file.read(1024 * 1024)  # 1MB chunks
+                if not chunk:
+                    break
+                buffer.write(chunk)
+                file_size += len(chunk)
+        
+        saved_files.append(pdf_path)
+        print(f"   ✅ Guardado: {file.filename} ({file_size / 1024:.1f} KB)")
 
+    print(f"\n✅ Total guardado: {len(saved_files)} PDF(s)")
+    
+    # Ejecutar indexación
+    print(f"\n🚀 Iniciando indexación con: python scripts/index_docs.py {model}")
     try:
         process = subprocess.run(
-            [PYTHON, "scripts/index_docs.py", model]
+            [PYTHON, "scripts/index_docs.py", model],
+            capture_output=True,
+            text=True,
+            timeout=300
         )
+        
+        # Mostrar output
+        print(f"\n--- SALIDA DEL SCRIPT ---")
+        if process.stdout:
+            for line in process.stdout.split('\n')[-20:]:  # Últimas 20 líneas
+                if line.strip():
+                    print(f"{line}")
+        
+        if process.stderr:
+            print(f"\n--- ERRORES ---")
+            print(process.stderr)
+        
+        print(f"\n--- RESULTADO: Return Code {process.returncode} ---\n")
+        
         if process.returncode != 0:
-            return {"status": "error", "logs": "Falló la indexación. Revisa los logs de la consola."}
+            error_msg = process.stderr or process.stdout or "Falló sin mensaje de error"
+            print(f"❌ INDEXACIÓN FALLÓ")
+            return {"status": "error", "logs": error_msg}
+        
+        print(f"✅ INDEXACIÓN EXITOSA")
+        
+    except subprocess.TimeoutExpired:
+        print(f"❌ TIMEOUT: Indexación >300 segundos")
+        return {"status": "error", "logs": "Indexación tardó demasiado (>5 min). ¿Está ollama corriendo?"}
     except Exception as e:
+        print(f"❌ ERROR: {e}")
         raise HTTPException(status_code=500, detail=f"Error durante re-indexación vectorial: {str(e)}")
 
+    print("="*80 + "\n")
     return {"status": "success", "logs": "Indexación exitosa.", "message": "Base de datos vectorizada actualizada."}
 
 @app.get("/reports")
@@ -328,25 +390,36 @@ async def get_rules():
     """Retorna todos los fragmentos de conocimiento almacenados en ChromaDB."""
     if not os.path.exists("db"):
         return {"rules": [], "error": "No hay base de conocimiento indexada. Sube PDFs en 'Nutrir IA' primero."}
+    
     try:
         import chromadb
-        client = chromadb.PersistentClient(path="db")
+        
+        # Usar ruta absoluta para asegurar que ChromaDB la encuentra
+        db_path = os.path.abspath("db")
+        client = chromadb.PersistentClient(path=db_path)
         collections = client.list_collections()
+        
         if not collections:
-            return {"rules": [], "error": "La base de conocimiento está vacía."}
-
-        col_name = collections[0].name if hasattr(collections[0], "name") else str(collections[0])
-        collection = client.get_collection(col_name)
+            return {"rules": [], "error": "La base de conocimiento está vacía. Los chunks no se generaron correctamente."}
+        
+        # Usar la primera colección (usualmente "documents")
+        collection = collections[0]
         result = collection.get(include=["documents", "metadatas"])
-
+        
         documents = result.get("documents") or []
         ids       = result.get("ids")       or []
         metadatas = result.get("metadatas") or []
+        
+        if not documents:
+            return {"rules": [], "error": "La base de conocimiento está vacía (sin documentos)."}
+        
+        print(f"✅ Se cargaron {len(documents)} documentos desde ChromaDB")
 
         rules = []
         for i, doc in enumerate(documents):
-            if not doc:
+            if not doc or not doc.strip():
                 continue
+            
             source = ""
             try:
                 meta = metadatas[i] if metadatas and i < len(metadatas) else {}
@@ -354,15 +427,19 @@ async def get_rules():
                 source = os.path.basename(raw) if raw else ""
             except Exception:
                 pass
+            
             rules.append({
                 "id":     ids[i] if i < len(ids) else str(i),
-                "text":   doc,
+                "text":   doc.strip(),
                 "source": source,
             })
-
+        
         return {"rules": rules, "total": len(rules)}
     except Exception as e:
-        return {"rules": [], "error": str(e)}
+        print(f"❌ Error en /rules: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"rules": [], "error": f"Error cargando base de conocimiento: {str(e)}"}
 
 
 @app.get("/rules/checklist")
@@ -419,4 +496,4 @@ async def generate_final_doc_endpoint(model: str = Form(...), report_name: str =
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)

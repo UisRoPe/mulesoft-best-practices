@@ -85,7 +85,11 @@ RESTRICCIONES ABSOLUTAS:
 - PROHIBIDO combinar múltiples hallazgos en una sola fila.
 - PROHIBIDO generar filas vacías o con datos de ejemplo.
 - Cada fila DEBE ocupar exactamente una línea en el Markdown.
-"""
+
+EXCEPCIONES CORPORATIVAS — HALLAZGOS A OMITIR:
+Las siguientes observaciones son válidas por contexto corporativo y DEBEN SER OMITIDAS del reporte final:
+- Nomenclatura de archivos `*-properties.yaml` (ej: `prod-properties.yaml`, `qa-properties.yaml`): Es estándar aceptado en Mule y spring Boot. NO reportar.
+- Puerto 8081 en configuración: Es estándar para servicios internos Mule. NO reportar como incumplimiento de puerto HTTPS."""
     prompt = ChatPromptTemplate.from_template(template)
 
     chain = (
@@ -167,9 +171,9 @@ RESTRICCIONES ABSOLUTAS:
                         # Solo añadimos al reporte si hay algo que corregir
                         if "✅" not in result:
                             # Regex robusto: busca en filas de datos (empiezan con | número |)
-                            count_alta  += len(re.findall(r'^\|[^|]*\d+[^|]*\|[^|]*Alta[^|]*\|',  result, re.IGNORECASE | re.MULTILINE))
+                            count_alta  += len(re.findall(r'^\|[^|]*\d+[^|]*\|[^|]*Alta[^|]*\|', result, re.IGNORECASE | re.MULTILINE))
                             count_media += len(re.findall(r'^\|[^|]*\d+[^|]*\|[^|]*Media[^|]*\|', result, re.IGNORECASE | re.MULTILINE))
-                            count_baja  += len(re.findall(r'^\|[^|]*\d+[^|]*\|[^|]*Baja[^|]*\|',  result, re.IGNORECASE | re.MULTILINE))
+                            count_baja  += len(re.findall(r'^\|[^|]*\d+[^|]*\|[^|]*Baja[^|]*\|', result, re.IGNORECASE | re.MULTILINE))
                             full_report += f"### 📄 Archivo: `{rel_path}`\n\n{result}\n\n"
                     except Exception as e:
                         print(f"  ❌ Error: {e}")
