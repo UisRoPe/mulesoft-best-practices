@@ -779,19 +779,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadTasksFromJSON(jsonFilename) {
+        // Mostrar loading
+        document.getElementById('tasks-loading').classList.remove('hidden');
+        document.getElementById('tasks-list').classList.add('hidden');
+        document.getElementById('tasks-empty').classList.add('hidden');
+        
         try {
             const res = await fetch(`/tasks/${jsonFilename}`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
-            if (!res.ok) throw new Error('Error al cargar tareas');
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.detail || 'Error al cargar tareas');
+            }
             
             const data = await res.json();
             allTasks = data.tasks || [];
+            console.log('📋 Tareas cargadas:', allTasks.length);
             
             document.getElementById('tasks-title').textContent = `Plan de Tareas — ${data.project}`;
             renderTasks(allTasks);
         } catch (err) {
-            alert('Error cargando tareas: ' + err.message);
+            console.error('Error:', err);
+            document.getElementById('tasks-loading').classList.add('hidden');
+            document.getElementById('tasks-empty').classList.remove('hidden');
+            alert('❌ Error cargando tareas: ' + err.message);
         }
     }
 
@@ -800,45 +812,47 @@ document.addEventListener('DOMContentLoaded', () => {
         const empty = document.getElementById('tasks-empty');
         const loading = document.getElementById('tasks-loading');
         
+        // Siempre quitar loading
         loading.classList.add('hidden');
         
         if (!tasks || tasks.length === 0) {
             empty.classList.remove('hidden');
             list.classList.add('hidden');
+            console.log('⚠️  No hay tareas para mostrar');
             return;
         }
         
         empty.classList.add('hidden');
         list.innerHTML = '';
         
-        tasks.forEach(task => {
+        tasks.forEach((task, idx) => {
             const li = document.createElement('li');
             li.className = 'task-item';
             li.innerHTML = `
                 <div class="task-content">
                     <div class="task-header">
-                        <input type="checkbox" class="task-checkbox" data-task-id="${task.id}">
+                        <input type="checkbox" class="task-checkbox" data-task-id="${task.id}" data-idx="${idx}">
                         <span class="task-id">${task.id}</span>
+                        <span class="task-prioridad">[${task.prioridad}]</span>
                         <span class="task-hallazgo">${task.hallazgo}</span>
                     </div>
                     <div class="task-details">
                         <span class="task-label">Archivo:</span> <code>${task.archivo}</code>
                     </div>
                     <div class="task-details">
-                        <span class="task-label">Acción:</span> ${task.accion}
+                        <span class="task-label">Acción:</span> <span>${task.accion}</span>
                     </div>
                     <div class="task-details">
-                        <span class="task-label">Tiempo estimado:</span> ${task.tiempo}
+                        <span class="task-label">Tiempo:</span> <span>${task.tiempo}</span>
                     </div>
                 </div>
             `;
             
             const checkbox = li.querySelector('.task-checkbox');
             checkbox.addEventListener('change', (e) => {
-                const taskId = e.target.dataset.taskId;
-                const idx = allTasks.findIndex(t => t.id === taskId);
-                if (idx !== -1) {
-                    allTasks[idx].aplica = e.target.checked;
+                const taskIdx = parseInt(e.target.dataset.idx);
+                if (allTasks[taskIdx]) {
+                    allTasks[taskIdx].aplica = e.target.checked;
                 }
             });
             
@@ -846,6 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         list.classList.remove('hidden');
+        console.log('✅ Tareas renderizadas:', tasks.length);
     }
 
     function filterTasks() {

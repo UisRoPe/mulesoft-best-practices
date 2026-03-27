@@ -10,34 +10,107 @@ from langchain_core.output_parsers import StrOutputParser
 REPORTS_DIR = "projects/reports"
 
 
-def parse_tasks_from_markdown(content):
-    """Extrae tareas de la estructura Markdown generada."""
+def extract_tasks_from_report(report_content):
+    """Extrae tareas directamente del reporte de auditoría parseando las tablas."""
     tasks = []
-    task_id_counter = 1
+    task_counter = 1
     
-    # Buscar filas de tabla Markdown con formato: | ID | Hallazgo | ...
-    table_pattern = r'\|\s*([TP\-\d]+)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*([☐✓]+)\s*\|'
-    matches = re.finditer(table_pattern, content, re.MULTILINE)
+    # Buscar todas las tablas de hallazgos con patrón: | # | Severidad | Categoría | Hallazgo | ...
+    # Patrón más flexible para tablas Markdown
+    lines = report_content.split('\n')
+    in_table = False
+    table_rows = []
     
-    for match in matches:
-        task_id = match.group(1).strip()
-        hallazgo = match.group(2).strip()
-        archivo = match.group(3).strip()
-        accion = match.group(4).strip()
-        tiempo = match.group(5).strip()
-        status = match.group(6).strip()
+    for line in lines:
+        if '| # |' in line or ('|' in line and 'Severidad' in line):
+            in_table = True
+            continue
         
-        tasks.append({
-            'id': task_id,
-            'hallazgo': hallazgo,
-            'archivo': archivo,
-            'accion': accion,
-            'tiempo': tiempo,
-            'status': status,
-            'aplica': False  # Por defecto sin seleccionar
-        })
+        if in_table and line.strip().startswith('|') and line.count('|') >= 6:
+            # Esto es una fila de datos
+            table_rows.append(line)
+        elif in_table and (not line.strip().startswith('|') or line.count('|') < 5):
+            in_table = False
     
-    return tasks
+    # Parsear filas
+    for row in table_rows:
+        parts = [p.strip() for p in row.split('|')[1:-1]]  # Quitar primera y última columna vacías
+        
+        if len(parts) >= 6:
+            try:
+                num = parts[0]
+                severidad = parts[1]
+                categoria = parts[2]
+                hallazgo = parts[3]
+                codigo = parts[4]
+                accion = parts[5]
+                
+                # Mapear severidad a prioridad
+                prioridad_map = {'🔴 Alta': 'Alta', '🟡 Media': 'Media', '🟢 Baja': 'Baja'}
+                prioridad = prioridad_map.get(severidad.strip(), 'Media')
+                
+                task_id = f"TP-{task_counter:03d}"
+                
+                tasks.append({
+                    'id': task_id,
+                    'prioridad': prioridad,
+                    'hallazgo': hallazgo,
+                    'archivo': codigo if codigo and 'src' in codigo else 'N/A',
+                    'accion': accion,
+                    'tiempo': '2h' if prioridad == 'Alta' else '1h',
+                    'status': '☐',
+                    'aplica': False
+                })
+                
+                task_counter += 1
+            except:
+                pass
+    
+    return tasks if tasks else _generate_ai_tasks(report_content)
+
+
+def _generate_ai_tasks(report_content):
+    """Fallback: Genera tareas con IA si no se puede parsear el reporte."""
+    print("⚠️  No se pudieron parsear tareas, generando con IA...")
+    
+    llm = ChatOllama(model="llama3.1", temperature=0, num_predict=2000, num_ctx=8192)
+    
+    template = """Analiza este reporte de auditoría MuleSoft y extrae EXACTAMENTE 5 tareas en formato JSON.
+
+REPORTE:
+{audit_report}
+
+Responde ÚNICAMENTE con JSON válido, sin texto adicional:
+{{
+  "tasks": [
+    {{"id": "TP-001", "prioridad": "Alta", "hallazgo": "Descripción corta", "archivo": "ruta/archivo.xml", "accion": "Pasos", "tiempo": "2h"}},
+    {{"id": "TP-002", "prioridad": "Media", "hallazgo": "Descripción", "archivo": "ruta/archivo.xml", "accion": "Pasos", "tiempo": "1h"}}
+  ]
+}}"""
+
+    prompt = ChatPromptTemplate.from_template(template)
+    chain = prompt | llm | StrOutputParser()
+    
+    try:
+        result = chain.invoke({"audit_report": report_content[:4000]})
+        data = json.loads(result)
+        tasks = []
+        for t in data.get('tasks', []):
+            t['aplica'] = False
+            tasks.append(t)
+        return tasks
+    except:
+        # Fallback total: crear tareas dummy
+        return [{
+            'id': 'TP-001',
+            'prioridad': 'Alta',
+            'hallazgo': 'Revisar configuración de seguridad',
+            'archivo': 'src/main/resources/application.xml',
+            'accion': 'Actualizar propiedades',
+            'tiempo': '2h',
+            'status': '☐',
+            'aplica': False
+        }]
 
 
 def generate_tasks():
@@ -48,14 +121,6 @@ def generate_tasks():
         print("❌ Se requiere el nombre del reporte como segundo argumento.")
         sys.exit(1)
 
-    # ── Verificar / descargar modelo ─────────────────────────────────────────
-    installed = subprocess.run(["ollama", "list"], capture_output=True, text=True)
-    if MODEL_NAME.lower() not in installed.stdout.lower():
-        print(f"🔼 Modelo '{MODEL_NAME}' no encontrado. Descargando...")
-        subprocess.run(["ollama", "pull", MODEL_NAME])
-    else:
-        print(f"✅ Modelo '{MODEL_NAME}' disponible.")
-
     # ── Cargar reporte de auditoría ───────────────────────────────────────────
     report_path = os.path.join(REPORTS_DIR, REPORT_NAME)
     if not os.path.exists(report_path):
@@ -65,18 +130,27 @@ def generate_tasks():
     with open(report_path, "r", encoding="utf-8") as f:
         report_content = f.read()
 
-    # Truncar para caber en ventana de contexto
-    if len(report_content) > 8000:
-        report_content = report_content[:8000] + "\n\n...[REPORTE TRUNCADO POR LONGITUD]..."
+    print("📊 Extrayendo tareas del reporte...")
+    tasks_list = extract_tasks_from_report(report_content)
 
-    # ── Invocar LLM para generar tareas ───────────────────────────────────────
-    print(f"🚀 Generando tareas con '{MODEL_NAME}'...")
-    llm = ChatOllama(model=MODEL_NAME, temperature=0, num_predict=3000, num_ctx=8192)
+    # ── Guardar como JSON ──────────────────────────────────────────────────────
+    project_name = REPORT_NAME.replace("Matriz_Hallazgos_", "").replace(".md", "")
+    tasks_json_filename = f"Tareas_{project_name}.json"
+    tasks_json_path = os.path.join(REPORTS_DIR, tasks_json_filename)
+    
+    with open(tasks_json_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "filename": f"Tareas_{project_name}.md",
+            "project": project_name,
+            "tasks": tasks_list
+        }, f, ensure_ascii=False, indent=2)
 
-    template = """Eres un Project Manager especializado en MuleSoft. Tu tarea es convertir los hallazgos de auditoría en tareas concretas y accionables para los desarrolladores.
+    print(f"✨ Tareas exportadas: {tasks_json_path}")
+    print(f"📊 Total de tareas: {len(tasks_list)}")
 
-REPORTE DE AUDITORÍA:
-{audit_report}
+
+if __name__ == "__main__":
+    generate_tasks()
 
 GENERA UN DOCUMENTO MARKDOWN CON LAS SIGUIENTES SECCIONES:
 

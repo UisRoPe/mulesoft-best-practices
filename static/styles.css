@@ -658,6 +658,13 @@ input::placeholder { color: var(--t3); }
     color: var(--ac);
     min-width: 60px;
 }
+.task-prioridad {
+    font-size: .75rem;
+    padding: .2rem .4rem;
+    border-radius: var(--r);
+    font-weight: 500;
+}
+.task-prioridad:contains("Alta") { background: rgba(248,81,73,.2); color: var(--err); }
 .task-hallazgo { flex: 1; color: var(--t1); font-weight: 500; }
 .task-details {
     display: flex;

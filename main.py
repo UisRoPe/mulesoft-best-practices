@@ -523,12 +523,12 @@ async def generate_tasks_endpoint(model: str = Form(...), report_name: str = For
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/tasks/{json_filename}")
+@app.get("/tasks/{json_filename:path}")
 async def get_tasks(json_filename: str):
     """Obtiene las tareas parseadas en JSON."""
     tasks_path = os.path.join("projects/reports", json_filename)
     if not os.path.exists(tasks_path):
-        raise HTTPException(status_code=404, detail="Archivo de tareas no encontrado.")
+        raise HTTPException(status_code=404, detail=f"Archivo de tareas no encontrado: {json_filename}")
     
     try:
         with open(tasks_path, "r", encoding="utf-8") as f:
