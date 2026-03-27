@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // ── Topbar tab switching ─────────────────────────────────────────────────
+    // ── Topbar tab switching ────────────────────────────────────────────────
     document.querySelectorAll('.topbar-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const viewId = tab.getAttribute('data-view');
@@ -119,7 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
             tab.classList.add('active');
             document.querySelectorAll('.main-view').forEach(v => v.classList.add('hidden'));
             document.getElementById(viewId)?.classList.remove('hidden');
-            if (viewId === 'view-checklist' && !checklistLoaded) loadRules();
         });
     });
 
@@ -535,7 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('view-report').scrollTop = 0;
 
             window.activeReportName = filename;
-            syncGenerateButtons();
+            syncTasksButton();
         } catch (e) { console.error(e); }
     }
 
@@ -555,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('.topbar-tab[data-view="view-report"]')?.classList.add('active');
 
         window.activeReportName = null;
-        syncGenerateButtons();
+        syncTasksButton();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -600,7 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elList.classList.remove('hidden');
             renderRules();
             updateStats();
-            syncGenerateButtons();
+            syncTasksButton();
         } catch (e) {
             elLoading.classList.add('hidden');
             elEmpty.classList.remove('hidden');
@@ -710,7 +709,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             if (res.ok) {
                 btn.textContent = '✅ Guardado';
-                syncGenerateButtons();
+                syncTasksButton();
                 setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
             } else {
                 alert('Error al guardar: ' + (data.detail || data.message));
@@ -724,55 +723,50 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Generate final doc buttons
-    document.getElementById('btn-generate-final-doc')?.addEventListener('click',  triggerFinalDoc);
-    document.getElementById('btn-gen-doc-from-report')?.addEventListener('click', triggerFinalDoc);
+    // Generate tasks button
+    document.getElementById('btn-generate-tasks')?.addEventListener('click', triggerGenerateTasks);
 
-    function syncGenerateButtons() {
+    function syncTasksButton() {
         const has = !!window.activeReportName;
-        document.getElementById('btn-generate-final-doc')?.toggleAttribute('disabled', !has);
-        document.getElementById('btn-gen-doc-from-report')?.toggleAttribute('disabled', !has);
+        document.getElementById('btn-generate-tasks')?.toggleAttribute('disabled', !has);
     }
 
-    async function triggerFinalDoc() {
+    async function triggerGenerateTasks() {
         if (!window.activeReportName) {
             alert('Primero abre un reporte en la pestaña Reportes.');
             return;
         }
-        if (!confirm(`¿Generar Documento Final?\n\nReporte: ${window.activeReportName}\n\nAsegúrate de haber guardado el checklist antes de continuar.`)) return;
+        if (!confirm(`¿Generar Tareas para los desarrolladores?\n\nReporte: ${window.activeReportName}`)) return;
 
         const model = document.getElementById('model-select').value;
         const fd    = new FormData();
         fd.append('model',       model);
         fd.append('report_name', window.activeReportName);
 
-        const btns = [
-            document.getElementById('btn-generate-final-doc'),
-            document.getElementById('btn-gen-doc-from-report')
-        ].filter(Boolean);
-        btns.forEach(b => { b.disabled = true; b.textContent = '⏳ Generando…'; });
+        const btn = document.getElementById('btn-generate-tasks');
+        const orig = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Generando…';
 
         try {
-            const res  = await fetch('/generate_final_doc', {
+            const res  = await fetch('/generate_tasks', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 body: fd
             });
             const data = await res.json();
             if (res.ok && data.status === 'success') {
-                alert(`✅ Documento Final generado:\n${data.document}\n\nBúscalo en Reportes.`);
+                alert(`✅ Tareas generadas:\n${data.filename}\n\nBúscalas en Reportes.`);
                 loadReports();
             } else {
                 alert('Error: ' + (data.logs || data.detail || 'Error desconocido.'));
             }
         } catch {
-            alert('Error de conexión al generar el documento.');
+            alert('Error de conexión al generar tareas.');
         } finally {
-            const btnFromReport = document.getElementById('btn-gen-doc-from-report');
-            const btnFromCheck  = document.getElementById('btn-generate-final-doc');
-            if (btnFromReport) btnFromReport.textContent = '✨ Documento Final';
-            if (btnFromCheck)  btnFromCheck.textContent  = '✨ Generar Documento Final';
-            syncGenerateButtons();
+            btn.disabled = false;
+            btn.textContent = orig;
+            syncTasksButton();
         }
     }
 

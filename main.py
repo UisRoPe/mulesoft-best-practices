@@ -494,6 +494,30 @@ async def generate_final_doc_endpoint(model: str = Form(...), report_name: str =
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/generate_tasks")
+async def generate_tasks_endpoint(model: str = Form(...), report_name: str = Form(...)):
+    """Genera tareas automáticas para los desarrolladores a partir del reporte de auditoría."""
+    report_path = os.path.join("projects/reports", report_name)
+    if not os.path.exists(report_path):
+        raise HTTPException(status_code=404, detail="Reporte de auditoría no encontrado.")
+
+    try:
+        process = subprocess.run(
+            [PYTHON, "scripts/generate_tasks.py", model, report_name],
+            capture_output=True, text=True,
+        )
+        if process.returncode != 0:
+            return {"status": "error", "logs": process.stderr or "Error al generar tareas."}
+
+        tasks_filename = report_name.replace("Matriz_Hallazgos_", "Tareas_")
+        if not tasks_filename.startswith("Tareas_"):
+            tasks_filename = "Tareas_" + report_name
+
+        return {"status": "success", "filename": tasks_filename}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
