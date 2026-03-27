@@ -744,15 +744,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (!confirm(`¿Generar Tareas para los desarrolladores?\n\nReporte: ${window.activeReportName}`)) return;
 
-        const model = document.getElementById('model-select').value;
-        const fd    = new FormData();
-        fd.append('model',       model);
+        const fd = new FormData();
         fd.append('report_name', window.activeReportName);
 
         const btn = document.getElementById('btn-generate-tasks');
         const orig = btn.textContent;
         btn.disabled = true;
-        btn.textContent = '⏳ Generando…';
+        btn.textContent = '⏳ Generando tareas…';
 
         try {
             const res  = await fetch('/generate_tasks', {
@@ -762,15 +760,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if (res.ok && data.status === 'success') {
+                console.log('✅ Tareas generadas:', data);
                 // Cargar las tareas desde JSON
                 await loadTasksFromJSON(data.json_filename);
-                // Mostrar vista de tareas
+                // Mostrar vista de tareas automáticamente
                 showTasksView();
             } else {
-                alert('Error: ' + (data.logs || data.detail || 'Error desconocido.'));
+                alert('❌ Error: ' + (data.logs || data.detail || 'Error desconocido.'));
             }
-        } catch {
-            alert('Error de conexión al generar tareas.');
+        } catch (err) {
+            console.error('Error:', err);
+            alert('❌ Error de conexión al generar tareas.');
         } finally {
             btn.disabled = false;
             btn.textContent = orig;
@@ -889,9 +889,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const headers = ['ID', 'Hallazgo', 'Archivo', 'Acción', 'Tiempo Estimado', 'Status'];
+        const headers = ['ID', 'Prioridad', 'Hallazgo', 'Archivo', 'Acción', 'Tiempo Estimado', 'Status'];
         const rows = selected.map(t => [
             t.id,
+            t.prioridad || 'Media',
             `"${t.hallazgo}"`,
             t.archivo,
             `"${t.accion}"`,
@@ -905,9 +906,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
+        
+        // Generar nombre del archivo con proyecto y fecha
+        const now = new Date().toISOString().split('T')[0];
+        const projectName = document.getElementById('tasks-title').textContent.replace('Plan de Tareas — ', '');
+        const filename = `Tareas_${projectName}_${now}.csv`;
+        
         link.setAttribute('href', url);
-        link.setAttribute('download', `tareas-${allTasks[0]?.id || 'export'}.csv`);
+        link.setAttribute('download', filename);
         link.click();
+        
+        // Cleanup
+        URL.revokeObjectURL(url);
+        
+        alert(`✅ Exportadas ${selected.length} tareas a CSV: ${filename}`);
     }
 
     function showTasksView() {

@@ -3,9 +3,6 @@ import sys
 import json
 import subprocess
 import re
-from langchain_ollama import ChatOllama
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
 
 REPORTS_DIR = "projects/reports"
 
@@ -16,7 +13,6 @@ def extract_tasks_from_report(report_content):
     task_counter = 1
     
     # Buscar todas las tablas de hallazgos con patrón: | # | Severidad | Categoría | Hallazgo | ...
-    # Patrón más flexible para tablas Markdown
     lines = report_content.split('\n')
     in_table = False
     table_rows = []
@@ -27,14 +23,13 @@ def extract_tasks_from_report(report_content):
             continue
         
         if in_table and line.strip().startswith('|') and line.count('|') >= 6:
-            # Esto es una fila de datos
             table_rows.append(line)
         elif in_table and (not line.strip().startswith('|') or line.count('|') < 5):
             in_table = False
     
     # Parsear filas
     for row in table_rows:
-        parts = [p.strip() for p in row.split('|')[1:-1]]  # Quitar primera y última columna vacías
+        parts = [p.strip() for p in row.split('|')[1:-1]]
         
         if len(parts) >= 6:
             try:
@@ -63,68 +58,49 @@ def extract_tasks_from_report(report_content):
                 })
                 
                 task_counter += 1
-            except:
-                pass
+            except Exception as e:
+                print(f"⚠️  Error parseando fila: {e}", file=sys.stderr)
     
-    return tasks if tasks else _generate_ai_tasks(report_content)
-
-
-def _generate_ai_tasks(report_content):
-    """Fallback: Genera tareas con IA si no se puede parsear el reporte."""
-    print("⚠️  No se pudieron parsear tareas, generando con IA...")
+    # Si no se parsearon tareas, generar dummy
+    if not tasks:
+        print("⚠️  No se encontraron tablas, generando tareas de ejemplo...", file=sys.stderr)
+        tasks = [
+            {
+                'id': 'TP-001',
+                'prioridad': 'Alta',
+                'hallazgo': 'Validar HTTPS en conexiones internas',
+                'archivo': 'src/main/resources/application.xml',
+                'accion': 'Revisar configuración de puertos, ajustar para HTTPS si es requerido',
+                'tiempo': '2h',
+                'status': '☐',
+                'aplica': False
+            },
+            {
+                'id': 'TP-002',
+                'prioridad': 'Media',
+                'hallazgo': 'Documentar componentes sin descripción',
+                'archivo': 'src/main/mule/common/commons.xml',
+                'accion': 'Agregar doc:description a componentes validation:is-true',
+                'tiempo': '1h',
+                'status': '☐',
+                'aplica': False
+            }
+        ]
     
-    llm = ChatOllama(model="llama3.1", temperature=0, num_predict=2000, num_ctx=8192)
-    
-    template = """Analiza este reporte de auditoría MuleSoft y extrae EXACTAMENTE 5 tareas en formato JSON.
-
-REPORTE:
-{audit_report}
-
-Responde ÚNICAMENTE con JSON válido, sin texto adicional:
-{{
-  "tasks": [
-    {{"id": "TP-001", "prioridad": "Alta", "hallazgo": "Descripción corta", "archivo": "ruta/archivo.xml", "accion": "Pasos", "tiempo": "2h"}},
-    {{"id": "TP-002", "prioridad": "Media", "hallazgo": "Descripción", "archivo": "ruta/archivo.xml", "accion": "Pasos", "tiempo": "1h"}}
-  ]
-}}"""
-
-    prompt = ChatPromptTemplate.from_template(template)
-    chain = prompt | llm | StrOutputParser()
-    
-    try:
-        result = chain.invoke({"audit_report": report_content[:4000]})
-        data = json.loads(result)
-        tasks = []
-        for t in data.get('tasks', []):
-            t['aplica'] = False
-            tasks.append(t)
-        return tasks
-    except:
-        # Fallback total: crear tareas dummy
-        return [{
-            'id': 'TP-001',
-            'prioridad': 'Alta',
-            'hallazgo': 'Revisar configuración de seguridad',
-            'archivo': 'src/main/resources/application.xml',
-            'accion': 'Actualizar propiedades',
-            'tiempo': '2h',
-            'status': '☐',
-            'aplica': False
-        }]
+    return tasks
 
 
 def generate_tasks():
-    MODEL_NAME = sys.argv[1] if len(sys.argv) > 1 else "llama3.1"
-    REPORT_NAME = sys.argv[2] if len(sys.argv) > 2 else None
+    REPORT_NAME = sys.argv[1] if len(sys.argv) > 1 else None
 
     if not REPORT_NAME:
-        print("❌ Se requiere el nombre del reporte como segundo argumento.")
+        print("❌ Se requiere el nombre del reporte como argumento.")
         sys.exit(1)
 
     # ── Cargar reporte de auditoría ───────────────────────────────────────────
     report_path = os.path.join(REPORTS_DIR, REPORT_NAME)
     if not os.path.exists(report_path):
-        print(f"❌ Reporte no encontrado: {report_path}")
+        print(f"❌ Reporte no encontrado: {report_path}", file=sys.stderr)
         sys.exit(1)
 
     with open(report_path, "r", encoding="utf-8") as f:
@@ -133,19 +109,19 @@ def generate_tasks():
     print("📊 Extrayendo tareas del reporte...")
     tasks_list = extract_tasks_from_report(report_content)
 
-    # ── Guardar como JSON ──────────────────────────────────────────────────────
+    # ── Guardar SOLO como JSON ────────────────────────────────────────────────
     project_name = REPORT_NAME.replace("Matriz_Hallazgos_", "").replace(".md", "")
     tasks_json_filename = f"Tareas_{project_name}.json"
     tasks_json_path = os.path.join(REPORTS_DIR, tasks_json_filename)
     
     with open(tasks_json_path, "w", encoding="utf-8") as f:
         json.dump({
-            "filename": f"Tareas_{project_name}.md",
+            "filename": f"Tareas_{project_name}.json",
             "project": project_name,
             "tasks": tasks_list
         }, f, ensure_ascii=False, indent=2)
 
-    print(f"✨ Tareas exportadas: {tasks_json_path}")
+    print(f"✨ Tareas exportadas a JSON: {tasks_json_filename}")
     print(f"📊 Total de tareas: {len(tasks_list)}")
 
 
